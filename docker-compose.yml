@@ -1,0 +1,47 @@
+version: '3.8'
+name: agent-review-bot
+services:
+  review-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: review-bot
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./temp:/app/temp
+      - ./models:/app/models
+      - ./logs:/app/logs
+    depends_on:
+      - ollama
+    networks:
+      - review-network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-service
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - review-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  ollama_data:
+
+networks:
+  review-network:
+    driver: bridge 
