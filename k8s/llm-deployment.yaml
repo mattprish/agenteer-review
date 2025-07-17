@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-service
+  labels:
+    app: llm-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-service
+  template:
+    metadata:
+      labels:
+        app: llm-service
+    spec:
+      containers:
+      - name: llm
+        image: cr.yandex/crphvdf8t7v4bpqnv3g5/llm-service:latest
+        ports:
+        - containerPort: 8000
+        - containerPort: 11434
+        env:
+        - name: OLLAMA_HOST
+          value: "0.0.0.0:11434"
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+        volumeMounts:
+        - name: ollama-data
+          mountPath: /root/.ollama
+      volumes:
+      - name: ollama-data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-service
+  labels:
+    app: llm-service
+spec:
+  selector:
+    app: llm-service
+  ports:
+  - name: api
+    port: 8000
+    targetPort: 8000
+  - name: ollama
+    port: 11434
+    targetPort: 11434
+  type: ClusterIP 
