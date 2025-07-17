@@ -1,0 +1,42 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Устанавливаем системные зависимости
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Устанавливаем Ollama
+RUN curl -fsSL https://ollama.ai/install.sh | sh
+
+# Копируем и устанавливаем зависимости
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем код приложения
+COPY core/ ./core/
+COPY utils/ ./utils/
+COPY llm_service.py .
+
+# Создаем необходимые директории
+RUN mkdir -p temp models
+
+# Устанавливаем переменные окружения
+ENV PYTHONPATH=/app
+ENV OLLAMA_HOST=0.0.0.0:11434
+
+# Открываем порты
+EXPOSE 8000 11434
+
+# Скрипт запуска с Ollama
+RUN echo '#!/bin/bash\n\
+ollama serve &\n\
+sleep 10\n\
+ollama pull llama3.2:3b &\n\
+uvicorn llm_service:app --host 0.0.0.0 --port 8000' > /start.sh && \
+chmod +x /start.sh
+
+CMD ["/start.sh"] 

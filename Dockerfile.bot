@@ -1,0 +1,28 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Устанавливаем системные зависимости
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копируем и устанавливаем зависимости
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем код бота
+COPY bot/ ./bot/
+COPY utils/ ./utils/
+COPY bot_service.py .
+
+# Создаем необходимые директории
+RUN mkdir -p temp
+
+# Устанавливаем переменные окружения
+ENV PYTHONPATH=/app
+ENV LOG_LEVEL=INFO
+
+# Запускаем бот-сервис
+CMD ["python", "bot_service.py"] 
