@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from core.pdf_extractor import PDFExtractor
 from core.orchestrator import Orchestrator
 from core.agents.structure_agent import StructureAgent
+from core.agents.summary_agent import SummaryAgent
 
 # Настраиваем логирование
 logging.basicConfig(level=logging.INFO)
@@ -43,23 +44,32 @@ async def test_components():
         return False
     
     try:
+        summary_agent = SummaryAgent()
+        print("   ✅ Summary Agent инициализирован")
+    except Exception as e:
+        print(f"   ❌ Ошибка инициализации Summary Agent: {e}")
+        return False
+    
+    try:
         orchestrator = Orchestrator()
         print("   ✅ Orchestrator инициализирован")
     except Exception as e:
         print(f"   ❌ Ошибка инициализации Orchestrator: {e}")
         return False
     
-    # Тест 2: Регистрация агента
-    print("\n2. 📋 Тестирование регистрации агента...")
+    # Тест 2: Регистрация агентов
+    print("\n2. 📋 Тестирование регистрации агентов...")
     try:
         orchestrator.register_agent("StructureAgent", structure_agent)
         print("   ✅ Structure Agent зарегистрирован")
+        orchestrator.register_agent("SummaryAgent", summary_agent)
+        print("   ✅ Summary Agent зарегистрирован")
     except Exception as e:
-        print(f"   ❌ Ошибка регистрации агента: {e}")
+        print(f"   ❌ Ошибка регистрации агентов: {e}")
         return False
     
-    # Тест 3: Тестирование Structure Agent
-    print("\n3. 🏗 Тестирование Structure Agent...")
+    # Тест 3: Тестирование агентов
+    print("\n3. 🏗 Тестирование агентов...")
     
     test_text = """
     Abstract
@@ -90,6 +100,7 @@ async def test_components():
         "author": "Test Author"
     }
     
+    # Тестирование Structure Agent
     try:
         structure_results = await structure_agent.analyze(test_text, test_metadata)
         print(f"   ✅ Structure Agent выполнен")
@@ -98,6 +109,19 @@ async def test_components():
     except Exception as e:
         print(f"   ❌ Ошибка выполнения Structure Agent: {e}")
         return False
+    
+    # Тестирование Summary Agent
+    try:
+        summary_results = await summary_agent.analyze(test_text, test_metadata)
+        print(f"   ✅ Summary Agent выполнен")
+        summary = summary_results.get('summary', '')
+        if summary:
+            print(f"   📝 Резюме сгенерировано ({len(summary)} символов)")
+        print(f"   📊 Качество резюме: {summary_results.get('summary_quality', 'unknown')}")
+        print(f"   📊 Ключевые темы: {summary_results.get('key_topics', [])}")
+    except Exception as e:
+        print(f"   ⚠️ Summary Agent выполнен с ошибкой (возможно, LLM недоступен): {e}")
+        # Не останавливаем тест, так как LLM может быть недоступен в тестовой среде
     
     # Тест 4: Проверка health check
     print("\n4. 🔍 Тестирование health check...")

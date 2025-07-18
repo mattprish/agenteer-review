@@ -1,0 +1,104 @@
+repos:
+  # Базовые проверки
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=10240']  # 10MB
+      - id: check-json
+      - id: check-toml
+      - id: check-xml
+      - id: debug-statements
+      - id: check-builtin-literals
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: mixed-line-ending
+
+  # Python форматирование
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+      - id: black
+        language_version: python3
+        args: [--line-length=88]
+
+  # Python импорты
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: [--profile=black]
+
+  # Python линтер
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
+      - id: flake8
+        args: [--max-line-length=88, --extend-ignore=E203,W503]
+
+  # Безопасность
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        args: [-r, ., -f, json, -o, bandit-report.json]
+        exclude: ^tests/
+
+  # Локальные тесты
+  - repo: local
+    hooks:
+      - id: local-tests
+        name: 🧪 Локальные тесты
+        entry: python test_local.py
+        language: system
+        pass_filenames: false
+        stages: [commit]
+
+      - id: new-agents-test
+        name: 🆕 Тест новых агентов
+        entry: python test_new_agent.py
+        language: system
+        pass_filenames: false
+        files: ^core/agents/.*\.py$
+
+      - id: docker-syntax
+        name: 🐳 Проверка Dockerfile
+        entry: docker
+        args: [build, --dry-run, -f]
+        language: system
+        files: ^Dockerfile.*
+
+  # Проверка зависимостей
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.3.2
+    hooks:
+      - id: python-safety-dependencies-check
+        files: requirements.txt
+
+  # Проверка YAML
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.32.0
+    hooks:
+      - id: yamllint
+        args: [-d, relaxed]
+
+# Конфигурация
+default_stages: [commit]
+fail_fast: false
+
+# Исключения
+exclude: |
+  (?x)^(
+    venv/.*|
+    temp/.*|
+    models/.*|
+    \.git/.*|
+    __pycache__/.*|
+    .*\.pyc|
+    .*\.log
+  )$ 

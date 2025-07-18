@@ -148,6 +148,13 @@ class Orchestrator:
                     prompt_parts.append(f"- Structure quality: {results.get('structure_quality', 'unknown')}")
                     prompt_parts.append(f"- Completeness score: {results.get('completeness_score', 0):.2f}")
                     prompt_parts.append(f"- Recommendations: {results.get('recommendations', [])}")
+                
+                elif agent_name == "SummaryAgent":
+                    prompt_parts.append(f"- Summary: {results.get('summary', 'No summary available')}")
+                    prompt_parts.append(f"- Summary quality: {results.get('summary_quality', 'unknown')}")
+                    prompt_parts.append(f"- Key topics: {results.get('key_topics', [])}")
+                    prompt_parts.append(f"- Compression ratio: {results.get('compression_ratio', 0):.2f}")
+                    prompt_parts.append(f"- Readability score: {results.get('readability_score', 0):.2f}")
         
         prompt_parts.append("\nGenerate a professional academic review.")
         
@@ -198,9 +205,29 @@ class Orchestrator:
                 
                 recommendations = structure_results.get('recommendations', [])
                 if recommendations:
-                    review_parts.append("\n**Рекомендации:**")
+                    review_parts.append("\n**Рекомендации по структуре:**")
                     for rec in recommendations:
                         review_parts.append(f"- {rec}")
+        
+        # Анализируем результаты Summary Agent
+        if "SummaryAgent" in agent_results:
+            summary_results = agent_results["SummaryAgent"]
+            
+            if "error" not in summary_results:
+                review_parts.append("\n## Анализ содержания")
+                
+                summary = summary_results.get('summary', '')
+                quality = summary_results.get('summary_quality', 'unknown')
+                key_topics = summary_results.get('key_topics', [])
+                compression_ratio = summary_results.get('compression_ratio', 0)
+                
+                if summary:
+                    review_parts.append("**Резюме статьи:**")
+                    review_parts.append(summary)
+                
+                review_parts.append(f"\n**Качество изложения:** {quality}")
+                review_parts.append(f"**Ключевые темы:** {', '.join(key_topics) if key_topics else 'Не определены'}")
+                review_parts.append(f"**Сжатие текста:** {compression_ratio:.1%}")
         
         # Общие выводы
         review_parts.append("\n## Общие выводы")

@@ -1,0 +1,35 @@
+services:
+  llm-service:
+    image: cr.yandex/crphvdf8t7v4bpqnv3g5/llm-service:latest
+    container_name: llm-service
+    ports:
+      - "8000:8000"
+      - "11434:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./temp:/app/temp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  telegram-bot:
+    image: cr.yandex/crphvdf8t7v4bpqnv3g5/telegram-bot:latest
+    container_name: telegram-bot
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - LLM_SERVICE_URL=http://llm-service:8000
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./temp:/app/temp
+    depends_on:
+      - llm-service
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+    driver: local 

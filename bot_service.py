@@ -14,7 +14,7 @@ from pathlib import Path
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from bot.handlers import router
+from bot_service_handlers import router
 from bot.config import config
 
 # Настройка логирования

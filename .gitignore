@@ -21,6 +21,7 @@ wheels/
 *.egg
 MANIFEST
 
+
 # Environment variables
 .env
 .venv
@@ -61,3 +62,5 @@ Thumbs.db
 
 # лишнее
 рутубе/ 
+key.json
+*.log

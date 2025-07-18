@@ -1,0 +1,231 @@
+name: 🧪 Test and Deploy
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: cr.yandex/crphvdf8t7v4bpqnv3g5
+
+jobs:
+  # Unit и Integration тесты
+  test:
+    name: 🔬 Unit & Integration Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📦 Checkout code
+      uses: actions/checkout@v4
+    
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: 📋 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio pytest-mock
+    
+    - name: 🧪 Run local tests
+      run: |
+        python test_local.py
+    
+    - name: 🧪 Run unit tests
+      run: |
+        python test_deployment.py --unit-only
+    
+    - name: 📊 Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: |
+          *.log
+          test-*.xml
+
+  # Проверка Dockerfile'ов
+  docker-build:
+    name: 🐳 Docker Build Test
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: 📦 Checkout code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: 🏗️ Build Bot Docker image
+      run: |
+        docker build -t test-bot:latest -f Dockerfile.bot .
+    
+    - name: 🏗️ Build LLM Docker image
+      run: |
+        docker build -t test-llm:latest -f Dockerfile.llm .
+    
+    - name: 🔍 Test Docker images
+      run: |
+        # Проверяем что образы созданы
+        docker images | grep test-bot
+        docker images | grep test-llm
+        
+        # Базовые проверки образов
+        docker run --rm test-bot:latest python -c "import bot_service; print('Bot service import OK')"
+        docker run --rm test-llm:latest python -c "import llm_service; print('LLM service import OK')"
+
+  # Тестирование с Docker Compose
+  integration-test:
+    name: 🔗 Integration Test with Docker
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📦 Checkout code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Set up Docker Compose
+      run: |
+        # Создаем локальную версию docker-compose для тестов
+        cp docker-compose.production.yml docker-compose.test.yml
+        
+        # Заменяем registry образы на локальные
+        sed -i 's|cr.yandex/crphvdf8t7v4bpqnv3g5/telegram-bot:latest|test-bot:latest|g' docker-compose.test.yml
+        sed -i 's|cr.yandex/crphvdf8t7v4bpqnv3g5/llm-service:latest|test-llm:latest|g' docker-compose.test.yml
+    
+    - name: 🏗️ Build test images
+      run: |
+        docker build -t test-bot:latest -f Dockerfile.bot .
+        docker build -t test-llm:latest -f Dockerfile.llm .
+    
+    - name: 🚀 Start services
+      run: |
+        export BOT_TOKEN="test_token_for_ci"
+        docker-compose -f docker-compose.test.yml up -d
+        
+        # Ждем запуска сервисов
+        sleep 30
+    
+    - name: 🔍 Check services health
+      run: |
+        # Проверяем что контейнеры запущены
+        docker-compose -f docker-compose.test.yml ps
+        
+        # Проверяем health check LLM сервиса
+        timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 5; done'
+        
+        # Проверяем логи на ошибки
+        docker-compose -f docker-compose.test.yml logs telegram-bot | grep -i error && exit 1 || true
+        docker-compose -f docker-compose.test.yml logs llm-service | grep -i error && exit 1 || true
+    
+    - name: 🧪 Run integration tests
+      run: |
+        export LLM_SERVICE_URL="http://localhost:8000"
+        python test_deployment.py --deployment-only
+    
+    - name: 🧹 Cleanup
+      if: always()
+      run: |
+        docker-compose -f docker-compose.test.yml down -v
+        docker system prune -f
+
+  # Тестирование новых агентов
+  new-agents-test:
+    name: 🆕 New Agents Test
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: 📦 Checkout code
+      uses: actions/checkout@v4
+    
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: 📋 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: 🆕 Test new agents
+      run: |
+        python test_new_agent.py
+
+  # Деплой (только для main ветки)
+  deploy:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [test, docker-build, integration-test, new-agents-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: 📦 Checkout code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: 🔑 Login to Yandex Container Registry
+      env:
+        YC_REGISTRY_ID: ${{ secrets.YC_REGISTRY_ID }}
+        YC_SERVICE_ACCOUNT_KEY: ${{ secrets.YC_SERVICE_ACCOUNT_KEY }}
+      run: |
+        echo "$YC_SERVICE_ACCOUNT_KEY" | base64 -d > key.json
+        docker login --username json_key --password-file key.json cr.yandex
+        rm key.json
+    
+    - name: 🏗️ Build and push Bot image
+      run: |
+        docker build -t $REGISTRY/telegram-bot:latest -f Dockerfile.bot .
+        docker push $REGISTRY/telegram-bot:latest
+        
+        # Тегируем с версией
+        docker tag $REGISTRY/telegram-bot:latest $REGISTRY/telegram-bot:$GITHUB_SHA
+        docker push $REGISTRY/telegram-bot:$GITHUB_SHA
+    
+    - name: 🏗️ Build and push LLM image
+      run: |
+        docker build -t $REGISTRY/llm-service:latest -f Dockerfile.llm .
+        docker push $REGISTRY/llm-service:latest
+        
+        # Тегируем с версией
+        docker tag $REGISTRY/llm-service:latest $REGISTRY/llm-service:$GITHUB_SHA
+        docker push $REGISTRY/llm-service:$GITHUB_SHA
+    
+    - name: 📋 Create deployment summary
+      run: |
+        echo "🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "===================" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit:** $GITHUB_SHA" >> $GITHUB_STEP_SUMMARY
+        echo "- **Images pushed:**" >> $GITHUB_STEP_SUMMARY
+        echo "  - \`$REGISTRY/telegram-bot:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "  - \`$REGISTRY/llm-service:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Timestamp:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Ready for VM deployment!" >> $GITHUB_STEP_SUMMARY
+
+  # Уведомление о деплое
+  notify:
+    name: 📢 Notify Deployment
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    
+    steps:
+    - name: 📢 Deployment notification
+      run: |
+        if [ "${{ needs.deploy.result }}" == "success" ]; then
+          echo "✅ Deployment successful! New images are ready."
+          echo "Run the following on your VM to update:"
+          echo "  ./update_deployment.sh"
+        else
+          echo "❌ Deployment failed! Check the logs above."
+        fi 

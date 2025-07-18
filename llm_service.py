@@ -11,6 +11,8 @@ from pydantic import BaseModel
 import ollama
 from core.orchestrator import Orchestrator
 from core.pdf_extractor import PDFExtractor
+from core.agents.structure_agent import StructureAgent
+from core.agents.summary_agent import SummaryAgent
 
 # Настройка логирования
 logging.basicConfig(
@@ -45,6 +47,18 @@ async def startup_event():
         logger.info(f"Available models: {[m['name'] for m in models['models']]}")
     except Exception as e:
         logger.error(f"Ollama connection error: {e}")
+    
+    # Регистрируем агентов в оркестраторе
+    try:
+        structure_agent = StructureAgent()
+        summary_agent = SummaryAgent()
+        
+        orchestrator.register_agent("StructureAgent", structure_agent)
+        orchestrator.register_agent("SummaryAgent", summary_agent)
+        
+        logger.info("Agents registered successfully")
+    except Exception as e:
+        logger.error(f"Error registering agents: {e}")
 
 @app.get("/health")
 async def health_check():

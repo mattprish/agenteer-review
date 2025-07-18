@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY bot/ ./bot/
 COPY utils/ ./utils/
 COPY bot_service.py .
+COPY bot_service_handlers.py .
 
 # Создаем необходимые директории
 RUN mkdir -p temp
