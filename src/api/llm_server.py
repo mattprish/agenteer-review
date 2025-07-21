@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
-LLM сервис для обработки запросов на анализ научных статей
+FastAPI сервер для обработки запросов на анализ научных статей
+Взаимодействует только с ollama-сервером на порту 11434
 """
 
 import logging
 import asyncio
+import tempfile
+import os
 from typing import Dict, Any, List
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 import ollama
+
 from core.orchestrator import Orchestrator
 from core.pdf_extractor import PDFExtractor
 from core.agents.structure_agent import StructureAgent
@@ -36,15 +40,29 @@ class ReviewResponse(BaseModel):
     results: Dict[str, Any] = {}
     error: str = ""
 
+class PDFUploadResponse(BaseModel):
+    success: bool
+    text: str = ""
+    metadata: Dict[str, Any] = {}
+    error: str = ""
+
 @app.on_event("startup")
 async def startup_event():
     """Инициализация при запуске сервиса"""
     logger.info("Starting LLM Service...")
     
+    # Определяем хост для ollama в зависимости от окружения
+    if os.path.exists('/.dockerenv') or os.getenv('DOCKER_ENV'):
+        ollama_host = "http://ollama:11434"
+    else:
+        ollama_host = "http://localhost:11434"
+    
     # Проверяем доступность Ollama
     try:
-        models = await ollama.AsyncClient().list()
+        client = ollama.AsyncClient(host=ollama_host)
+        models = await client.list()
         logger.info(f"Available models: {[m['name'] for m in models['models']]}")
+        logger.info(f"Using ollama host: {ollama_host}")
     except Exception as e:
         logger.error(f"Ollama connection error: {e}")
     
@@ -64,6 +82,51 @@ async def startup_event():
 async def health_check():
     """Проверка здоровья сервиса"""
     return {"status": "healthy", "service": "llm-service"}
+
+@app.post("/upload-pdf", response_model=PDFUploadResponse)
+async def upload_pdf(file: UploadFile = File(...)):
+    """
+    Загружает PDF файл и извлекает из него текст
+    
+    Args:
+        file: PDF файл
+        
+    Returns:
+        PDFUploadResponse: Извлеченный текст и метаданные
+    """
+    try:
+        logger.info(f"Processing PDF file: {file.filename}")
+        
+        # Читаем содержимое файла
+        content = await file.read()
+        
+        # Создаем временный файл
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+        
+        try:
+            # Извлекаем текст и метаданные
+            text, metadata = await pdf_extractor.extract(temp_file_path)
+            
+            logger.info(f"PDF processed successfully. Text length: {len(text)}")
+            
+            return PDFUploadResponse(
+                success=True,
+                text=text,
+                metadata=metadata
+            )
+            
+        finally:
+            # Удаляем временный файл
+            os.unlink(temp_file_path)
+            
+    except Exception as e:
+        logger.error(f"Error processing PDF: {e}")
+        return PDFUploadResponse(
+            success=False,
+            error=f"Error processing PDF: {str(e)}"
+        )
 
 @app.post("/review", response_model=ReviewResponse)
 async def review_paper(request: ReviewRequest):
@@ -99,54 +162,17 @@ async def review_paper(request: ReviewRequest):
             detail=f"Error processing review: {str(e)}"
         )
 
-@app.post("/extract-pdf")
-async def extract_pdf_text(file_content: bytes):
-    """
-    Извлекает текст из PDF файла
-    
-    Args:
-        file_content: Содержимое PDF файла
-        
-    Returns:
-        Dict: Извлеченный текст и метаданные
-    """
-    try:
-        logger.info("Extracting text from PDF...")
-        
-        # Временно сохраняем файл для обработки
-        import tempfile
-        import os
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-            temp_file.write(file_content)
-            temp_file_path = temp_file.name
-        
-        try:
-            # Извлекаем текст
-            text, metadata = await pdf_extractor.extract_text_and_metadata(temp_file_path)
-            
-            return {
-                "success": True,
-                "text": text,
-                "metadata": metadata
-            }
-            
-        finally:
-            # Удаляем временный файл
-            os.unlink(temp_file_path)
-            
-    except Exception as e:
-        logger.error(f"Error extracting PDF: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error extracting PDF: {str(e)}"
-        )
-
 @app.get("/models")
 async def list_models():
     """Возвращает список доступных моделей"""
     try:
-        client = ollama.AsyncClient()
+        # Определяем хост для ollama в зависимости от окружения
+        if os.path.exists('/.dockerenv') or os.getenv('DOCKER_ENV'):
+            ollama_host = "http://ollama:11434"
+        else:
+            ollama_host = "http://localhost:11434"
+            
+        client = ollama.AsyncClient(host=ollama_host)
         models = await client.list()
         return {
             "success": True,

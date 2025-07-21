@@ -19,6 +19,9 @@ import aiohttp
 import requests
 from unittest.mock import AsyncMock, MagicMock
 
+# Добавляем src директорию в путь
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
+
 # Добавляем текущую директорию в путь
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -90,7 +93,7 @@ class UnitTestSuite(TestSuite):
             # Бот модули
             from bot.config import config
             from bot.keyboards import get_main_keyboard
-            import bot_service_handlers
+            from bot.handlers import router
             
             # Проверяем что объекты создаются
             orchestrator = Orchestrator()

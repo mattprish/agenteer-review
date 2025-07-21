@@ -3,12 +3,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def format_review(results: Dict[str, Any]) -> str:
+def format_review(results: Dict[str, Any], metadata: Dict[str, Any] = None) -> str:
     """
     Форматирует результаты анализа для отображения в Telegram
     
     Args:
         results: Результаты анализа от оркестратора
+        metadata: Метаданные статьи (опционально, если нет в results)
         
     Returns:
         str: Отформатированный текст рецензии
@@ -23,31 +24,41 @@ def format_review(results: Dict[str, Any]) -> str:
         formatted_parts.append("📄 *Автоматическая рецензия научной статьи*\n")
         
         # Метаданные статьи
-        metadata = results.get("metadata", {})
-        if metadata:
+        paper_metadata = metadata or results.get("metadata", {})
+        if paper_metadata:
             formatted_parts.append("📋 *Информация о статье:*")
             
-            if metadata.get("title"):
-                formatted_parts.append(f"• *Название:* {metadata['title'][:100]}...")
+            if paper_metadata.get("title"):
+                title = paper_metadata["title"]
+                if len(title) > 100:
+                    title = title[:100] + "..."
+                formatted_parts.append(f"• *Название:* {title}")
             
-            if metadata.get("author"):
-                formatted_parts.append(f"• *Автор:* {metadata['author']}")
+            if paper_metadata.get("author"):
+                formatted_parts.append(f"• *Автор:* {paper_metadata['author']}")
             
-            if metadata.get("page_count"):
-                formatted_parts.append(f"• *Количество страниц:* {metadata['page_count']}")
+            if paper_metadata.get("page_count"):
+                formatted_parts.append(f"• *Количество страниц:* {paper_metadata['page_count']}")
             
             formatted_parts.append("")
         
-        # Результаты анализа структуры
+        # Результаты анализа агентов
         agent_results = results.get("agent_results", {})
+        
+        # Структурный анализ
         if "StructureAgent" in agent_results:
             structure_formatted = format_structure_analysis(agent_results["StructureAgent"])
             formatted_parts.append(structure_formatted)
         
+        # Анализ содержания (Summary Agent)
+        if "SummaryAgent" in agent_results:
+            summary_formatted = format_summary_analysis(agent_results["SummaryAgent"])
+            formatted_parts.append(summary_formatted)
+        
         # Финальная рецензия
         final_review = results.get("final_review", "")
         if final_review:
-            formatted_parts.append("📝 *Итоговая рецензия:*")
+            formatted_parts.append("📝 *Итоговая рецензия:*\n")
             formatted_parts.append(final_review)
         
         return "\n".join(formatted_parts)
@@ -61,7 +72,7 @@ def format_structure_analysis(structure_results: Dict[str, Any]) -> str:
     if "error" in structure_results:
         return f"❌ *Ошибка анализа структуры:* {structure_results['error']}\n"
     
-    parts = ["🏗 *Анализ структуры статьи:*\n"]
+    parts = ["🏗 *Анализ структуры статьи:*"]
     
     # Найденные разделы
     found_sections = structure_results.get("found_sections", [])
@@ -82,23 +93,54 @@ def format_structure_analysis(structure_results: Dict[str, Any]) -> str:
     
     # Оценка полноты
     completeness = structure_results.get("completeness_score", 0)
-    parts.append(f"📊 *Полнота структуры:* {completeness:.1%}")
+    if isinstance(completeness, (int, float)):
+        parts.append(f"📊 *Полнота структуры:* {completeness:.1%}")
     
     # Рекомендации
     recommendations = structure_results.get("recommendations", [])
     if recommendations:
-        parts.append("\n💡 *Рекомендации:*")
+        parts.append("\n💡 *Рекомендации по структуре:*")
         for i, rec in enumerate(recommendations[:3], 1):  # Ограничиваем 3 рекомендациями
             parts.append(f"{i}. {rec}")
     
     parts.append("")
     return "\n".join(parts)
 
+def format_summary_analysis(summary_results: Dict[str, Any]) -> str:
+    """Форматирует результаты анализа содержания"""
+    if "error" in summary_results:
+        return f"❌ *Ошибка анализа содержания:* {summary_results['error']}\n"
+    
+    parts = ["📚 *Анализ содержания статьи:*"]
+    
+    # Качество резюме
+    summary_quality = summary_results.get("summary_quality", "unknown")
+    quality_emoji = get_quality_emoji(summary_quality)
+    parts.append(f"{quality_emoji} *Качество резюме:* {summary_quality}")
+    
+    # Ключевые темы
+    key_topics = summary_results.get("key_topics", [])
+    if key_topics:
+        parts.append(f"🔍 *Ключевые темы:* {', '.join(key_topics[:5])}")
+    
+    # Степень сжатия
+    compression_ratio = summary_results.get("compression_ratio", 0)
+    if isinstance(compression_ratio, (int, float)):
+        parts.append(f"📏 *Степень сжатия:* {compression_ratio:.1%}")
+    
+    # Резюме статьи (если не слишком длинное)
+    summary_text = summary_results.get("summary", "")
+    if summary_text and len(summary_text) < 800:
+        parts.append(f"\n📄 *Краткое резюме:*\n{summary_text[:600]}...")
+    
+    parts.append("")
+    return "\n".join(parts)
+
 def get_quality_emoji(quality: str) -> str:
-    """Возвращает эмодзи для качества структуры"""
+    """Возвращает эмодзи для качества"""
     quality_emojis = {
         "excellent": "🌟",
-        "good": "✅",
+        "good": "✅", 
         "fair": "⚠️",
         "poor": "❌",
         "unknown": "❓"
@@ -125,6 +167,7 @@ def format_progress_message(stage: str) -> str:
         "downloading": "📥 Скачиваю файл...",
         "extracting": "📄 Извлекаю текст из PDF...",
         "analyzing_structure": "🏗 Анализирую структуру статьи...",
+        "analyzing_content": "📚 Анализирую содержание...",
         "generating_review": "📝 Генерирую рецензию...",
         "finalizing": "✅ Завершаю обработку..."
     }

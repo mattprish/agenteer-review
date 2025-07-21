@@ -2,9 +2,7 @@ version: '3.8'
 
 services:
   llm-service:
-    build:
-      context: .
-      dockerfile: Dockerfile.llm
+    image: agenteer-review_llm-service:latest
     container_name: llm-service
     ports:
       - "8000:8000"
@@ -16,20 +14,19 @@ services:
       - ./temp:/app/temp
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"] 
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
 
   telegram-bot:
-    build:
-      context: .
-      dockerfile: Dockerfile.bot
+    image: agenteer-review_telegram-bot:latest
     container_name: telegram-bot
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - LLM_SERVICE_URL=http://llm-service:8000
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./temp:/app/temp
     depends_on:
@@ -39,4 +36,4 @@ services:
 
 volumes:
   ollama_data:
-    driver: local 
+    driver: local

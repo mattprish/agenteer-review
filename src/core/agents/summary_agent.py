@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Dict, Any
 import ollama
 from .base_agent import BaseAgent
@@ -11,7 +12,16 @@ class SummaryAgent(BaseAgent):
     def __init__(self, model_name: str = "llama3.2:3b"):
         super().__init__("SummaryAgent")
         self.model_name = model_name
-        self.client = ollama.AsyncClient()
+        
+        # Определяем хост для ollama в зависимости от окружения
+        # В Docker используем ollama:11434, локально - localhost:11434
+        if os.path.exists('/.dockerenv') or os.getenv('DOCKER_ENV'):
+            ollama_host = "http://ollama:11434"
+        else:
+            ollama_host = "http://localhost:11434"
+            
+        self.client = ollama.AsyncClient(host=ollama_host)
+        logger.info(f"SummaryAgent initialized with ollama host: {ollama_host}")
         
         # Системный промпт для суммаризации
         self.system_prompt = """
@@ -40,16 +50,23 @@ class SummaryAgent(BaseAgent):
         logger.info("Starting text summarization")
         
         try:
+            # Умное ограничение текста: берем первые 6000 символов и последние 2000
+            # Это сохраняет введение и выводы
+            if len(text) > 8000:
+                text_for_summary = text[:6000] + "\n\n...[текст сокращен]...\n\n" + text[-2000:]
+            else:
+                text_for_summary = text
+            
             # Подготавливаем промпт для суммаризации
-            prompt = self._build_summarization_prompt(text, metadata)
+            prompt = self._build_summarization_prompt(text_for_summary, metadata)
             
             # Отправляем запрос к LLM
             summary = await self._call_llm(prompt)
             
-            # Анализируем качество резюме
-            summary_quality = self._assess_summary_quality(summary, text)
+            # Простая оценка качества резюме
+            summary_quality = self._assess_summary_quality(summary)
             
-            # Определяем ключевые темы
+            # Извлекаем ключевые темы простым способом
             key_topics = self._extract_key_topics(summary)
             
             result = {
@@ -58,8 +75,7 @@ class SummaryAgent(BaseAgent):
                 "key_topics": key_topics,
                 "summary_length": len(summary),
                 "original_length": len(text),
-                "compression_ratio": len(summary) / len(text) if len(text) > 0 else 0,
-                "readability_score": self._calculate_readability_score(summary)
+                "compression_ratio": round(len(summary) / len(text) if len(text) > 0 else 0, 3)
             }
             
             logger.info(f"Summarization completed. Summary length: {len(summary)} chars")
@@ -73,25 +89,22 @@ class SummaryAgent(BaseAgent):
                 "summary_quality": "poor",
                 "key_topics": [],
                 "summary_length": 0,
-                "compression_ratio": 0,
-                "readability_score": 0.0
+                "compression_ratio": 0
             }
     
     def _build_summarization_prompt(self, text: str, metadata: Dict[str, Any]) -> str:
         """Строит промпт для суммаризации"""
         title = metadata.get('title', 'Научная статья')
         author = metadata.get('author', 'Автор не указан')
-        page_count = metadata.get('page_count', 'неизвестно')
         
         prompt = f"""
         Проанализируй и создай качественное резюме следующей научной статьи:
         
         Название: {title}
         Автор: {author}
-        Количество страниц: {page_count}
         
         Текст статьи:
-        {text[:8000]}  # Ограничиваем длину для эффективности
+        {text}
         
         Создай структурированное резюме, которое поможет читателю быстро понять:
         - О чем эта статья и зачем она написана
@@ -116,7 +129,7 @@ class SummaryAgent(BaseAgent):
                 options={
                     "temperature": 0.7,
                     "top_p": 0.9,
-                    "max_tokens": 800
+                    "num_predict": 800  # Ограничиваем длину ответа
                 }
             )
             
@@ -126,88 +139,52 @@ class SummaryAgent(BaseAgent):
             logger.error(f"Error calling LLM for summarization: {e}")
             raise e
     
-    def _assess_summary_quality(self, summary: str, original_text: str) -> str:
-        """Оценивает качество резюме"""
+    def _assess_summary_quality(self, summary: str) -> str:
+        """Простая оценка качества резюме"""
         if not summary or len(summary) < 50:
             return "poor"
         
-        # Простая эвристика на основе длины и структуры
         summary_words = len(summary.split())
-        original_words = len(original_text.split())
         
-        if summary_words == 0:
-            return "poor"
-        
-        compression_ratio = summary_words / original_words if original_words > 0 else 0
-        
-        # Проверяем структурированность (наличие ключевых слов)
+        # Проверяем наличие ключевых научных слов
         key_indicators = [
             "исследование", "результат", "вывод", "метод", "анализ",
-            "цель", "задача", "практический", "значимость", "работа"
+            "цель", "задача", "работа", "данные", "показать"
         ]
         
         found_indicators = sum(1 for indicator in key_indicators 
                              if indicator in summary.lower())
         
-        # Оценка качества
-        if (0.05 <= compression_ratio <= 0.3 and 
-            found_indicators >= 3 and 
-            summary_words >= 100):
+        # Простая оценка на основе длины и ключевых слов
+        if summary_words >= 150 and found_indicators >= 4:
             return "excellent"
-        elif (0.03 <= compression_ratio <= 0.4 and 
-              found_indicators >= 2 and 
-              summary_words >= 50):
+        elif summary_words >= 100 and found_indicators >= 3:
             return "good"
-        elif summary_words >= 30 and found_indicators >= 1:
+        elif summary_words >= 50 and found_indicators >= 2:
             return "fair"
         else:
             return "poor"
     
     def _extract_key_topics(self, summary: str) -> list:
-        """Извлекает ключевые темы из резюме"""
-        # Простое извлечение ключевых слов
-        import re
-        
-        # Удаляем стоп-слова и короткие слова
+        """Простое извлечение ключевых слов из резюме"""
+        # Убираем стоп-слова и короткие слова
         stop_words = {
-            'в', 'на', 'с', 'по', 'для', 'из', 'к', 'о', 'и', 'а', 'но', 'или',
-            'что', 'как', 'это', 'того', 'этого', 'была', 'были', 'было', 'есть',
-            'будет', 'может', 'должен', 'должна', 'должно', 'также', 'более',
-            'менее', 'очень', 'весьма', 'довольно', 'совсем'
+            'что', 'как', 'это', 'был', 'были', 'была', 'было', 'есть', 'будет', 
+            'может', 'должен', 'также', 'более', 'менее', 'очень', 'довольно'
         }
         
-        words = re.findall(r'\b[а-яё]+\b', summary.lower())
+        import re
+        words = re.findall(r'\b[а-яё]{4,}\b', summary.lower())
         
-        # Фильтруем и подсчитываем частоту
+        # Подсчитываем частоту значимых слов
         word_freq = {}
         for word in words:
-            if len(word) > 3 and word not in stop_words:
+            if word not in stop_words:
                 word_freq[word] = word_freq.get(word, 0) + 1
         
         # Возвращаем топ-5 ключевых слов
         key_topics = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:5]
-        return [word for word, freq in key_topics]
-    
-    def _calculate_readability_score(self, text: str) -> float:
-        """Вычисляет простую оценку читаемости"""
-        if not text:
-            return 0.0
-        
-        # Простая эвристика на основе длины предложений и слов
-        sentences = text.split('.')
-        words = text.split()
-        
-        if len(sentences) == 0 or len(words) == 0:
-            return 0.0
-        
-        avg_sentence_length = len(words) / len(sentences)
-        avg_word_length = sum(len(word) for word in words) / len(words)
-        
-        # Нормализуем оценку (оптимальная длина предложения 15-20 слов, слова 5-7 букв)
-        sentence_score = max(0, 1 - abs(avg_sentence_length - 17.5) / 17.5)
-        word_score = max(0, 1 - abs(avg_word_length - 6) / 6)
-        
-        return (sentence_score + word_score) / 2
+        return [word for word, freq in key_topics if freq > 1]  # Только слова, встречающиеся более 1 раза
     
     def get_prompt_template(self) -> str:
         """Возвращает шаблон промпта для оркестратора"""
@@ -216,8 +193,7 @@ class SummaryAgent(BaseAgent):
         - Summary: {summary}
         - Summary quality: {summary_quality}
         - Key topics: {key_topics}
-        - Compression ratio: {compression_ratio:.2f}
-        - Readability score: {readability_score:.2f}
+        - Compression ratio: {compression_ratio}
         
         Evaluate the content and clarity of this academic paper summary.
         """ 

@@ -12,8 +12,8 @@ import importlib
 from pathlib import Path
 from typing import List, Dict, Any
 
-# Добавляем текущую директорию в путь
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Добавляем src директорию в путь
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -23,8 +23,10 @@ class NewAgentTester:
     """Тестер для новых агентов"""
     
     def __init__(self):
-        self.agents_dir = Path("core/agents")
-        self.known_agents = {"base_agent.py", "structure_agent.py", "__init__.py"}
+        # Путь к агентам относительно корня проекта
+        project_root = Path(__file__).parent.parent
+        self.agents_dir = project_root / "src" / "core" / "agents"
+        self.known_agents = {"base_agent.py", "structure_agent.py", "summary_agent.py", "__init__.py"}
     
     def find_new_agents(self) -> List[str]:
         """Находит новые агенты в директории"""
