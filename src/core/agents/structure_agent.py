@@ -4,6 +4,8 @@ import asyncio
 from typing import Dict, Any
 import ollama
 from .base_agent import BaseAgent
+TIMER_FOR_LLM_CALL = 120.0
+NUM_PREDICT_FOR_LLM_CALL = 1000
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +46,6 @@ class StructureAgent(BaseAgent):
             if not text or not text.strip():
                 logger.warning("Empty text provided for structure analysis")
                 return "ERROR: Empty text provided for structure analysis"
-            
-            # Ограничиваем размер текста для быстрой обработки
-            max_chars = 8000  # Значительно меньше для скорости
-            if len(text) > max_chars:
-                text = text[:max_chars] + "... [text truncated for faster processing]"
             
             logger.info(f"Analyzing structure with LLM ({len(text)} chars)")
             
@@ -94,11 +91,11 @@ class StructureAgent(BaseAgent):
                     options={
                         "temperature": 0.1,  # Очень низкая температура для скорости
                         "top_p": 0.7,
-                        "num_predict": 300,  # Еще меньше токенов для скорости
+                        "num_predict": NUM_PREDICT_FOR_LLM_CALL,  # Еще меньше токенов для скорости
                         "stop": ["\n\n\n"]  # Останавливаем на двойных переносах
                     }
                 ),
-                timeout=30.0  # 30 секунд максимум на LLM вызов
+                timeout=TIMER_FOR_LLM_CALL
             )
             
             return response['message']['content']

@@ -4,6 +4,8 @@ import asyncio
 from typing import Dict, Any
 import ollama
 from .base_agent import BaseAgent
+TIMER_FOR_LLM_CALL = 120.0
+NUM_PREDICT_FOR_LLM_CALL = 1000
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +47,6 @@ class SummaryAgent(BaseAgent):
             if not text or not text.strip():
                 logger.warning("Empty text provided for summarization")
                 return "ERROR: Empty text provided for summarization"
-            
-            # Ограничиваем размер текста для быстрой обработки
-            max_chars = 8000  # Значительно меньше для скорости
-            if len(text) > max_chars:
-                text = text[:max_chars] + "... [text truncated for faster processing]"
             
             logger.info(f"Processing text snippet of {len(text)} chars")
             
@@ -93,11 +90,11 @@ class SummaryAgent(BaseAgent):
                     options={
                         "temperature": 0.2,  # Низкая температура для консистентности
                         "top_p": 0.8,
-                        "num_predict": 300,  # Ограничиваем для скорости
+                        "num_predict": NUM_PREDICT_FOR_LLM_CALL,  # Ограничиваем для скорости
                         "stop": ["\n\n\n"]  # Останавливаем на двойных переносах
                     }
                 ),
-                timeout=30.0  # 30 секунд максимум на LLM вызов
+                timeout=TIMER_FOR_LLM_CALL  # 30 секунд максимум на LLM вызов
             )
             
             return response['message']['content']

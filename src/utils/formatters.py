@@ -3,13 +3,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def format_review(results: Dict[str, Any], metadata: Dict[str, Any] = None) -> str:
+def format_review(results: Dict[str, Any], metadata: Dict[str, Any] = None, verbose: bool = False) -> str:
     """
     Форматирует результаты анализа для отображения в Telegram
     
     Args:
         results: Результаты анализа от оркестратора
         metadata: Метаданные статьи (опционально, если нет в results)
+        verbose: Показывать ли детальные результаты агентов
         
     Returns:
         str: Отформатированный текст рецензии
@@ -42,23 +43,26 @@ def format_review(results: Dict[str, Any], metadata: Dict[str, Any] = None) -> s
             
             formatted_parts.append("")
         
-        # Результаты анализа агентов
-        agent_results = results.get("agent_results", {})
-        
-        # Структурный анализ
-        if "StructureAgent" in agent_results:
-            structure_formatted = format_structure_analysis(agent_results["StructureAgent"])
-            formatted_parts.append(structure_formatted)
-        
-        # Анализ содержания (Summary Agent)
-        if "SummaryAgent" in agent_results:
-            summary_formatted = format_summary_analysis(agent_results["SummaryAgent"])
-            formatted_parts.append(summary_formatted)
-        
+        if verbose:
+            # Результаты анализа агентов (детальная информация)
+            agent_results = results.get("agent_results", {})
+            
+            formatted_parts.append("🔍 *Детальный анализ агентов:*\n")
+            
+            # Структурный анализ
+            if "StructureAgent" in agent_results:
+                structure_formatted = format_structure_analysis(agent_results["StructureAgent"])
+                formatted_parts.append(structure_formatted)
+            
+            # Анализ содержания (Summary Agent)
+            if "SummaryAgent" in agent_results:
+                summary_formatted = format_summary_analysis(agent_results["SummaryAgent"])
+                formatted_parts.append(summary_formatted)
+            
         # Финальная рецензия
         final_review = results.get("final_review", "")
         if final_review:
-            formatted_parts.append("📝 *Итоговая рецензия:*\n")
+            formatted_parts.append("📝 *Рецензия:*\n")
             formatted_parts.append(final_review)
         
         return "\n".join(formatted_parts)

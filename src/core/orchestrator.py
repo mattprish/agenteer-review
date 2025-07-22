@@ -8,6 +8,9 @@ from .agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
+TIMER_FOR_LLM_CALL = 120.0
+NUM_PREDICT_FOR_LLM_CALL = 1000
+
 class Orchestrator:
     """Оркестратор для управления процессом рецензирования"""
     
@@ -110,7 +113,7 @@ class Orchestrator:
         try:
             results = await asyncio.wait_for(
                 asyncio.gather(*tasks, return_exceptions=True),
-                timeout=90.0  # 1.5 минуты максимум на все агенты
+                timeout=TIMER_FOR_LLM_CALL*3
             )
         except asyncio.TimeoutError:
             logger.error("Agent processing timeout")
@@ -143,7 +146,7 @@ class Orchestrator:
             # Агрессивный таймаут для каждого агента
             result = await asyncio.wait_for(
                 agent.analyze(text, metadata),
-                timeout=40.0  # 40 секунд на агента (меньше чем раньше)
+                timeout=TIMER_FOR_LLM_CALL
             )
             
             # Проверяем, не вернул ли агент ошибку
@@ -223,17 +226,11 @@ Recommendations:
             
             if agent_name == "StructureAgent":
                 summary_parts.append(f"• Structure Analysis:")
-                if len(agent_result_text) > 300:
-                    summary_parts.append(f"  {agent_result_text[:300]}...")
-                else:
-                    summary_parts.append(f"  {agent_result_text}")
+                summary_parts.append(f"  {agent_result_text}")
             
             elif agent_name == "SummaryAgent":
                 summary_parts.append(f"• Content Summary:")
-                if len(agent_result_text) > 400:
-                    summary_parts.append(f"  {agent_result_text[:400]}...")
-                else:
-                    summary_parts.append(f"  {agent_result_text}")
+                summary_parts.append(f"  {agent_result_text}")
         
         if not summary_parts:
             return "Analysis incomplete - no successful agent results"
@@ -281,13 +278,18 @@ Recommendations:
                     options={
                         "temperature": 0.3,  # Низкая температура для консистентности
                         "top_p": 0.8,
-                        "num_predict": 400  # Ограничиваем для скорости
+                        "num_predict": NUM_PREDICT_FOR_LLM_CALL  # Ограничиваем для скорости
                     }
                 ),
-                timeout=25.0  # 25 секунд максимум на финальную рецензию
+                timeout=TIMER_FOR_LLM_CALL
             )
             
-            return response['message']['content']
+            raw_content = response['message']['content']
+            
+            # Извлекаем только финальный ответ после </think>
+            final_content = self._extract_final_response(raw_content)
+            
+            return final_content
             
         except asyncio.TimeoutError:
             logger.error("LLM timeout for final review")
@@ -295,6 +297,30 @@ Recommendations:
         except Exception as e:
             logger.error(f"Error calling LLM for final review: {e}")
             raise e
+    
+    def _extract_final_response(self, content: str) -> str:
+        """Извлекает финальный ответ после тега </think>"""
+        try:
+            # Ищем последний тег </think>
+            think_end_index = content.rfind('</think>')
+            
+            if think_end_index != -1:
+                # Извлекаем всё после </think>
+                final_response = content[think_end_index + len('</think>'):]
+                
+                if final_response:
+                    logger.info(f"Extracted final response after </think> tag ({len(final_response)} chars)")
+                    return final_response
+                else:
+                    logger.warning("No content found after </think> tag")
+            
+            # Если тега </think> нет, возвращаем весь контент
+            logger.info("No </think> tag found, returning full content")
+            return content.strip()
+            
+        except Exception as e:
+            logger.error(f"Error extracting final response: {e}")
+            return content.strip()
     
     async def health_check(self) -> Dict[str, Any]:
         """Быстрая проверка работоспособности системы"""

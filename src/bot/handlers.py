@@ -18,6 +18,7 @@ from .keyboards import (
     get_processing_keyboard, get_results_keyboard
 )
 from .config import config
+verbose = False
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -194,11 +195,11 @@ async def process_document(message: Message, state: FSMContext):
     
     # Создаем задачу обработки
     task = asyncio.create_task(
-        process_file_async(message, document, progress_message, state)
+        process_file_async(message, document, progress_message, state, verbose=False)
     )
     active_tasks[message.from_user.id] = task
 
-async def process_file_async(message: Message, document: Document, progress_message: Message, state: FSMContext):
+async def process_file_async(message: Message, document: Document, progress_message: Message, state: FSMContext, verbose: bool = False):
     """Асинхронная обработка файла"""
     user_id = message.from_user.id
     
@@ -269,7 +270,8 @@ async def process_file_async(message: Message, document: Document, progress_mess
         # Форматируем и отправляем результат
         formatted_review = format_review(
             review_result["results"],
-            pdf_result["metadata"]
+            pdf_result["metadata"],
+            verbose=verbose
         )
         
         await progress_message.edit_text(
