@@ -64,7 +64,7 @@ class OrchestratorBeta(BaseOrchestrator):  # not ready, only for test
             You are the Orchestrator Agent tasked with reviewing a research paper. Your job involves coordinating specialized review agents: the Experiment Agent evaluates methodology, robustness, and reproducibility; the Novelty Agent assesses originality, uniqueness, and contributions to existing knowledge; and the Impact Agent gauges potential significance, relevance, and real-world applications. Provide explicit instructions to each agent, consolidate their analyses, and present a structured, insightful summary. Clearly highlight overall strengths, weaknesses, and recommendation for acceptance, revision, or rejection.
         """
 
-    def run(self, papaer):
+    def run(self, paper):
         agent_responses = {}
         feedback_texts = {agent.name: "" for agent in self.agents}
         for i in range(self.num_):
