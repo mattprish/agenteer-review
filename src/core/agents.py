@@ -1,4 +1,3 @@
-from abc import ABC
 from langchain.llms import HuggingFacePipeline
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
