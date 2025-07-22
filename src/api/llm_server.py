@@ -68,13 +68,15 @@ async def startup_event():
     
     # Регистрируем агентов в оркестраторе
     try:
-        structure_agent = StructureAgent()
-        summary_agent = SummaryAgent()
+        # Инициализируем агентов с одной моделью для консистентности
+        model_name = "llama3.2:3b"
+        structure_agent = StructureAgent(model_name=model_name)
+        summary_agent = SummaryAgent(model_name=model_name)
         
         orchestrator.register_agent("StructureAgent", structure_agent)
         orchestrator.register_agent("SummaryAgent", summary_agent)
         
-        logger.info("Agents registered successfully")
+        logger.info(f"Agents registered successfully with model: {model_name}")
     except Exception as e:
         logger.error(f"Error registering agents: {e}")
 

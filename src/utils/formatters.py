@@ -91,10 +91,14 @@ def format_structure_analysis(structure_results: Dict[str, Any]) -> str:
     quality_emoji = get_quality_emoji(quality)
     parts.append(f"{quality_emoji} *Качество структуры:* {quality}")
     
-    # Оценка полноты
+    # Оценка полноты и связности
     completeness = structure_results.get("completeness_score", 0)
     if isinstance(completeness, (int, float)):
         parts.append(f"📊 *Полнота структуры:* {completeness:.1%}")
+    
+    coherence = structure_results.get("coherence_score", 0)
+    if isinstance(coherence, (int, float)):
+        parts.append(f"🔗 *Связность:* {coherence:.1%}")
     
     # Рекомендации
     recommendations = structure_results.get("recommendations", [])

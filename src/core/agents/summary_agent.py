@@ -14,7 +14,6 @@ class SummaryAgent(BaseAgent):
         self.model_name = model_name
         
         # Определяем хост для ollama в зависимости от окружения
-        # В Docker используем ollama:11434, локально - localhost:11434
         if os.path.exists('/.dockerenv') or os.getenv('DOCKER_ENV'):
             ollama_host = "http://ollama:11434"
         else:
@@ -23,26 +22,17 @@ class SummaryAgent(BaseAgent):
         self.client = ollama.AsyncClient(host=ollama_host)
         logger.info(f"SummaryAgent initialized with ollama host: {ollama_host}")
         
-        # Системный промпт для суммаризации
+        # Оптимизированный системный промпт на английском
         self.system_prompt = """
-        Ты - эксперт по анализу научных статей. Твоя задача - создать качественное резюме научной статьи на русском языке.
+        You are an expert academic paper summarizer. Create concise, informative summaries efficiently.
         
-        Резюме должно включать:
-        1. Основную тему и цель исследования
-        2. Ключевые методы исследования
-        3. Главные результаты и выводы
-        4. Практическую значимость работы
+        Focus on:
+        1. Main research objective and purpose
+        2. Key methodology used
+        3. Primary results and findings
+        4. Practical significance
         
-        Резюме должно быть:
-        - Кратким (2-4 абзаца)
-        - Точным и информативным
-        - Написанным научным стилем
-        - На русском языке
-        
-        Избегай:
-        - Повторения деталей
-        - Слишком технических терминов без объяснения
-        - Субъективных оценок
+        Be precise and scholarly in your analysis.
         """
     
     async def analyze(self, text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -50,75 +40,63 @@ class SummaryAgent(BaseAgent):
         logger.info("Starting text summarization")
         
         try:
-            # Умное ограничение текста: берем первые 6000 символов и последние 2000
-            # Это сохраняет введение и выводы
-            if len(text) > 8000:
-                text_for_summary = text[:6000] + "\n\n...[текст сокращен]...\n\n" + text[-2000:]
-            else:
-                text_for_summary = text
+            # Проверяем входные данные
+            if not text or not text.strip():
+                logger.warning("Empty text provided for summarization")
+                return {
+                    "error": "Пустой текст для анализа",
+                    "summary": "Текст для анализа отсутствует",
+                    "key_topics": [],
+                    "summary_length": 0,
+                    "original_length": 0,
+                }
             
-            # Подготавливаем промпт для суммаризации
-            prompt = self._build_summarization_prompt(text_for_summary, metadata)
+            logger.info(f"Processing text snippet of {len(text)} chars (original: {len(text)})")
             
-            # Отправляем запрос к LLM
-            summary = await self._call_llm(prompt)
+            # Генерируем суммаризацию через LLM
+            summary_result = await self._generate_summary(text)
             
-            # Простая оценка качества резюме
-            summary_quality = self._assess_summary_quality(summary)
-            
-            # Извлекаем ключевые темы простым способом
-            key_topics = self._extract_key_topics(summary)
+            # Извлекаем ключевые темы
+            key_topics = self._extract_key_topics(summary_result)
             
             result = {
-                "summary": summary,
-                "summary_quality": summary_quality,
+                "summary": summary_result.strip(),
                 "key_topics": key_topics,
-                "summary_length": len(summary),
-                "original_length": len(text),
-                "compression_ratio": round(len(summary) / len(text) if len(text) > 0 else 0, 3)
+                "summary_length": len(summary_result),
+                "original_length": len(text)
             }
             
-            logger.info(f"Summarization completed. Summary length: {len(summary)} chars")
+            logger.info(f"Summarization completed. Summary length: {len(summary_result)} chars")
             return result
             
         except Exception as e:
-            logger.error(f"Error in text summarization: {e}")
+            logger.error(f"Error in text summarization: {e}", exc_info=True)
             return {
                 "error": str(e),
                 "summary": "Ошибка при генерации резюме статьи",
-                "summary_quality": "poor",
                 "key_topics": [],
                 "summary_length": 0,
-                "compression_ratio": 0
+                "original_length": len(text) if text else 0
             }
-    
-    def _build_summarization_prompt(self, text: str, metadata: Dict[str, Any]) -> str:
-        """Строит промпт для суммаризации"""
-        title = metadata.get('title', 'Научная статья')
-        author = metadata.get('author', 'Автор не указан')
+
+    async def _generate_summary(self, text: str) -> str:
+        """Быстрая генерация суммаризации через LLM"""
         
+        # Компактный промпт для быстрой суммаризации
         prompt = f"""
-        Проанализируй и создай качественное резюме следующей научной статьи:
-        
-        Название: {title}
-        Автор: {author}
-        
-        Текст статьи:
+        Summarize this academic paper focusing on key points:
+
         {text}
-        
-        Создай структурированное резюме, которое поможет читателю быстро понять:
-        - О чем эта статья и зачем она написана
-        - Какие методы использовались в исследовании
-        - Какие получены результаты и выводы
-        - В чем практическая ценность работы
-        
-        Резюме должно быть написано на русском языке в научном стиле.
+
+        Provide a structured summary covering:
+        - Research objective and purpose
+        - Methodology used
+        - Main results and findings
+        - Practical significance
+
+        Keep it concise and informative.
         """
         
-        return prompt
-    
-    async def _call_llm(self, prompt: str) -> str:
-        """Вызывает LLM для генерации резюме"""
         try:
             response = await self.client.chat(
                 model=self.model_name,
@@ -127,9 +105,9 @@ class SummaryAgent(BaseAgent):
                     {"role": "user", "content": prompt}
                 ],
                 options={
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "num_predict": 800  # Ограничиваем длину ответа
+                    "temperature": 0.2,  # Низкая температура для консистентности
+                    "top_p": 0.8,
+                    "num_predict": 400  # Ограничиваем для скорости
                 }
             )
             
@@ -140,60 +118,43 @@ class SummaryAgent(BaseAgent):
             raise e
     
     def _assess_summary_quality(self, summary: str) -> str:
-        """Простая оценка качества резюме"""
+        """Быстрая оценка качества резюме"""
         if not summary or len(summary) < 50:
             return "poor"
         
         summary_words = len(summary.split())
         
-        # Проверяем наличие ключевых научных слов
-        key_indicators = [
-            "исследование", "результат", "вывод", "метод", "анализ",
-            "цель", "задача", "работа", "данные", "показать"
-        ]
-        
-        found_indicators = sum(1 for indicator in key_indicators 
-                             if indicator in summary.lower())
-        
-        # Простая оценка на основе длины и ключевых слов
-        if summary_words >= 150 and found_indicators >= 4:
-            return "excellent"
-        elif summary_words >= 100 and found_indicators >= 3:
+        # Простые эвристики для быстрой оценки
+        if summary_words >= 100:
             return "good"
-        elif summary_words >= 50 and found_indicators >= 2:
+        elif summary_words >= 50:
             return "fair"
         else:
             return "poor"
     
     def _extract_key_topics(self, summary: str) -> list:
-        """Простое извлечение ключевых слов из резюме"""
-        # Убираем стоп-слова и короткие слова
-        stop_words = {
-            'что', 'как', 'это', 'был', 'были', 'была', 'было', 'есть', 'будет', 
-            'может', 'должен', 'также', 'более', 'менее', 'очень', 'довольно'
-        }
-        
+        """Быстрое извлечение ключевых слов"""
         import re
-        words = re.findall(r'\b[а-яё]{4,}\b', summary.lower())
         
-        # Подсчитываем частоту значимых слов
+        # Извлекаем значимые слова (3+ символа)
+        words = re.findall(r'\b[a-zA-Z]{3,}\b', summary.lower())
+        
+        # Простой подсчет частоты без стоп-слов
+        stop_words = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'}
+        
         word_freq = {}
         for word in words:
-            if word not in stop_words:
+            if word not in stop_words and len(word) > 3:
                 word_freq[word] = word_freq.get(word, 0) + 1
         
-        # Возвращаем топ-5 ключевых слов
-        key_topics = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:5]
-        return [word for word, freq in key_topics if freq > 1]  # Только слова, встречающиеся более 1 раза
+        # Возвращаем топ-5 слов, встречающихся более 1 раза
+        key_topics = [word for word, freq in sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:5] if freq > 1]
+        return key_topics
     
     def get_prompt_template(self) -> str:
         """Возвращает шаблон промпта для оркестратора"""
         return """
-        Based on the summary analysis:
-        - Summary: {summary}
-        - Summary quality: {summary_quality}
+        Content Analysis Results:
         - Key topics: {key_topics}
-        - Compression ratio: {compression_ratio}
-        
-        Evaluate the content and clarity of this academic paper summary.
+        - Summary: {summary}
         """ 

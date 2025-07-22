@@ -156,16 +156,27 @@ class LocalTestRunner:
                 mock_instance = AsyncMock()
                 mock_client.return_value = mock_instance
                 
-                # Настраиваем мок ответ
-                mock_instance.generate.return_value = {
-                    'response': '{"found_sections": ["Abstract", "Introduction", "Conclusion"], "structure_quality": "good"}'
+                # Настраиваем мок ответ для нового API
+                mock_instance.chat.return_value = {
+                    'message': {
+                        'content': '''FOUND_SECTIONS: abstract,introduction,conclusion
+MISSING_SECTIONS: methods,results,discussion
+QUALITY: good
+COHERENCE: 0.7
+COMPLETENESS: 0.6
+RECOMMENDATIONS:
+- Add methodology section
+- Include results section'''
+                    }
                 }
                 
-                results = await agent.analyze(test_text, {"title": "Test"})
+                results = await agent.analyze(test_text, {})
                 
                 # Проверяем результат
                 assert isinstance(results, dict)
                 assert "found_sections" in results
+                assert "structure_quality" in results
+                assert results["structure_quality"] == "good"
                 
             self.test_result("Structure agent basic", True)
             

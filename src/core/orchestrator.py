@@ -24,21 +24,17 @@ class Orchestrator:
         self.client = ollama.AsyncClient(host=ollama_host)
         logger.info(f"Orchestrator initialized with model: {model_name}, ollama host: {ollama_host}")
         
-        # Системный промпт для оркестратора
+        # Оптимизированный системный промпт для финальной рецензии на русском
         self.system_prompt = """
-        You are an academic paper review coordinator. Your task is to:
-        1. Analyze results from specialized agents
-        2. Generate a concise, constructive review
-        3. Provide specific recommendations
+        You are an academic paper review coordinator. Create a comprehensive review in English for Telegram bot users.
         
-        Format your response as a structured review with:
-        - Overall Assessment (1-2 sentences)
-        - Strengths (2-3 bullet points)
-        - Weaknesses (2-3 bullet points)  
-        - Specific Recommendations (2-3 actionable items)
+        Structure your review as:
+        1. Overall assessment (1-2 sentences)
+        2. Strengths (2-3 bullet points)  
+        3. Weaknesses (2-3 bullet points)
+        4. Recommendations (2-3 actionable items)
         
-        Be constructive and professional in your feedback.
-        Write the review in Russian language.
+        Write the entire review. Be constructive and professional.
         """
     
     def register_agent(self, name: str, agent: BaseAgent):
@@ -46,65 +42,60 @@ class Orchestrator:
         self.agents[name] = agent
         logger.info(f"Registered agent: {name}")
     
-    async def process_paper(self, text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Основной метод обработки статьи
-        
-        Args:
-            text: Текст статьи
-            metadata: Метаданные статьи
-            
-        Returns:
-            Dict: Результаты анализа и рецензия
-        """
-        logger.info("Starting paper processing")
+    async def process_paper(self, text: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Основной метод обработки статьи с максимальной оптимизацией"""
+        logger.info("Starting optimized paper processing")
         
         try:
-            # 1. Запуск всех зарегистрированных агентов параллельно
-            agent_results = await self._run_agents_parallel(text, metadata)
+            # Проверяем входные данные
+            if not text or not text.strip():
+                raise ValueError("Текст статьи не может быть пустым")
             
-            # 2. Генерация финального отчета
-            final_review = await self._generate_final_review(agent_results, metadata)
+            logger.info(f"Processing text of length: {len(text)} chars")
             
-            # 3. Формирование результата
+            # Оптимизация: передаем пустые метаданные всем агентам (не используются)
+            empty_metadata = {}
+            
+            # 1. Запуск всех агентов параллельно с агрессивными таймаутами
+            agent_results = await self._run_agents_parallel(text, empty_metadata)
+            logger.info(f"Agent analysis completed")
+            
+            # 2. Быстрая генерация финального отчета на русском
+            final_review = await self._generate_final_review(agent_results)
+            logger.info(f"Final review generated")
+            
+            # 3. Минимальный результат
             result = {
                 "agent_results": agent_results,
                 "final_review": final_review,
-                "metadata": metadata,
                 "processing_status": "success"
             }
+            
+            # Включаем метаданные только если переданы
+            if metadata:
+                result["metadata"] = metadata
             
             logger.info("Paper processing completed successfully")
             return result
             
         except Exception as e:
-            logger.error(f"Error in paper processing: {e}")
+            logger.error(f"Error in paper processing: {e}", exc_info=True)
             return {
                 "agent_results": {},
                 "final_review": f"Ошибка при обработке статьи: {str(e)}",
-                "metadata": metadata,
                 "processing_status": "error",
                 "error": str(e)
             }
     
     async def _run_agents_parallel(self, text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Запускает всех агентов параллельно для повышения производительности
-        
-        Args:
-            text: Текст статьи
-            metadata: Метаданные
-            
-        Returns:
-            Dict: Результаты работы всех агентов
-        """
+        """Запускает всех агентов параллельно с агрессивными таймаутами"""
         logger.info(f"Running {len(self.agents)} agents in parallel")
         
         if not self.agents:
             logger.warning("No agents registered")
             return {}
         
-        # Создаем задачи для всех агентов
+        # Создаем задачи для всех агентов одновременно
         tasks = []
         agent_names = []
         
@@ -115,8 +106,15 @@ class Orchestrator:
             tasks.append(task)
             agent_names.append(name)
         
-        # Ждем завершения всех задач
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Агрессивные таймауты для максимальной скорости
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=90.0  # 1.5 минуты максимум на все агенты
+            )
+        except asyncio.TimeoutError:
+            logger.error("Agent processing timeout")
+            return {"error": "Превышено время ожидания анализа"}
         
         # Собираем результаты
         agent_results = {}
@@ -128,178 +126,166 @@ class Orchestrator:
                     "status": "failed"
                 }
             else:
-                agent_results[name] = result
-                agent_results[name]["status"] = "success"
+                if isinstance(result, dict):
+                    agent_results[name] = result
+                    agent_results[name]["status"] = "success"
+                else:
+                    agent_results[name] = {
+                        "result": result,
+                        "status": "success"
+                    }
         
         logger.info(f"Completed {len(agent_results)} agent tasks")
         return agent_results
     
     async def _run_single_agent(self, agent: BaseAgent, text: str, metadata: Dict[str, Any], agent_name: str) -> Dict[str, Any]:
-        """
-        Запускает отдельного агента
-        
-        Args:
-            agent: Экземпляр агента
-            text: Текст для анализа
-            metadata: Метаданные
-            agent_name: Имя агента для логирования
-            
-        Returns:
-            Dict: Результат работы агента
-        """
+        """Запускает отдельного агента с агрессивным таймаутом"""
         try:
             logger.info(f"Starting agent: {agent_name}")
-            result = await agent.analyze(text, metadata)
+            
+            # Агрессивный таймаут для каждого агента
+            result = await asyncio.wait_for(
+                agent.analyze(text, metadata),
+                timeout=45.0  # 45 секунд на агента
+            )
+            
             logger.info(f"Agent {agent_name} completed successfully")
             return result
+            
+        except asyncio.TimeoutError:
+            logger.error(f"Agent {agent_name} timeout")
+            raise Exception(f"Агент {agent_name} превысил время ожидания")
         except Exception as e:
             logger.error(f"Agent {agent_name} failed: {e}")
             raise e
     
-    async def _generate_final_review(self, agent_results: Dict[str, Any], metadata: Dict[str, Any]) -> str:
-        """
-        Генерирует финальную рецензию на основе результатов агентов
-        
-        Args:
-            agent_results: Результаты работы агентов
-            metadata: Метаданные статьи
-            
-        Returns:
-            str: Финальная рецензия
-        """
+    async def _generate_final_review(self, agent_results: Dict[str, Any]) -> str:
+        """Генерирует финальную рецензию на русском языке"""
         logger.info("Generating final review")
         
         try:
-            # Подготавливаем данные для промпта
-            summary_data = self._prepare_agent_summary(agent_results)
+            # Быстрая подготовка сводки на английском для LLM
+            summary_data = self._prepare_english_summary(agent_results)
             
-            # Создаем промпт для финальной рецензии
-            prompt = self._build_final_review_prompt(summary_data, metadata)
+            # Компактный промпт для быстрой генерации
+            prompt = self._build_review_prompt(summary_data)
             
-            # Генерируем рецензию через LLM
+            # Генерируем рецензию с агрессивными ограничениями
             review = await self._call_llm_for_review(prompt)
             
             return review
             
         except Exception as e:
             logger.error(f"Error generating final review: {e}")
-            return f"Ошибка при генерации финальной рецензии: {str(e)}"
+            return f"Ошибка при генерации рецензии: {str(e)}"
     
-    def _prepare_agent_summary(self, agent_results: Dict[str, Any]) -> str:
-        """
-        Подготавливает сводку результатов агентов для финального промпта
-        
-        Args:
-            agent_results: Результаты работы агентов
-            
-        Returns:
-            str: Сводка результатов
-        """
+    def _prepare_english_summary(self, agent_results: Dict[str, Any]) -> str:
+        """Быстрая подготовка сводки на английском для LLM"""
         summary_parts = []
         
         for agent_name, result in agent_results.items():
             if result.get("status") == "failed":
-                summary_parts.append(f"• {agent_name}: Анализ не удался - {result.get('error', 'Неизвестная ошибка')}")
+                summary_parts.append(f"• {agent_name}: analysis failed")
                 continue
             
             if agent_name == "StructureAgent":
-                structure_score = result.get("structure_score", "unknown")
-                missing_sections = result.get("missing_sections", [])
-                summary_parts.append(f"• Структурный анализ: оценка {structure_score}/10")
-                if missing_sections:
-                    summary_parts.append(f"  - Отсутствующие разделы: {', '.join(missing_sections)}")
+                quality = result.get("structure_quality", "unknown")
+                completeness = result.get("completeness_score", 0)
+                coherence = result.get("coherence_score", 0)
+                missing = result.get("missing_sections", [])
+                
+                summary_parts.append(f"• Structure: {quality} quality")
+                summary_parts.append(f"  Completeness: {completeness:.1%}, Coherence: {coherence:.1%}")
+                if missing:
+                    summary_parts.append(f"  Missing: {', '.join(missing[:3])}")
             
             elif agent_name == "SummaryAgent":
-                summary_quality = result.get("summary_quality", "unknown")
-                key_topics = result.get("key_topics", [])
-                summary_parts.append(f"• Анализ содержания: качество резюме - {summary_quality}")
-                if key_topics:
-                    summary_parts.append(f"  - Ключевые темы: {', '.join(key_topics[:3])}")
+                quality = result.get("summary_quality", "unknown")
+                topics = result.get("key_topics", [])
+                compression = result.get("compression_ratio", 0)
+                
+                summary_parts.append(f"• Content: {quality} summary quality")
+                summary_parts.append(f"  Compression: {compression:.1%}")
+                if topics:
+                    summary_parts.append(f"  Key topics: {', '.join(topics[:3])}")
         
-        return "\n".join(summary_parts)
+        return "\n".join(summary_parts) if summary_parts else "Analysis incomplete"
     
-    def _build_final_review_prompt(self, agent_summary: str, metadata: Dict[str, Any]) -> str:
-        """
-        Строит промпт для генерации финальной рецензии
-        
-        Args:
-            agent_summary: Сводка результатов агентов
-            metadata: Метаданные статьи
-            
-        Returns:
-            str: Промпт для LLM
-        """
-        title = metadata.get("title", "Научная статья")
-        
+    def _build_review_prompt(self, agent_summary: str) -> str:
+        """Компактный промпт для быстрой генерации рецензии на русском"""
         prompt = f"""
-        На основе анализа научной статьи "{title}" различными специализированными агентами, 
-        создай структурированную рецензию.
-
-        Результаты анализа:
+        Academic paper analysis results:
         {agent_summary}
 
-        Создай профессиональную рецензию, включающую:
-        1. Общую оценку работы (1-2 предложения)
-        2. Сильные стороны (2-3 пункта)
-        3. Слабые стороны и проблемы (2-3 пункта)
-        4. Конкретные рекомендации по улучшению (2-3 пункта)
+        Create a comprehensive review with this structure:
 
-        Рецензия должна быть конструктивной, профессиональной и написана на русском языке.
+        Overall assessment: (1-2 sentences overall assessment)
+
+        Strengths:
+        - strength 1
+        - strength 2
+
+        Weaknesses:
+        - issue 1
+        - issue 2
+
+        Recommendations:
+        - recommendation 1
+        - recommendation 2
+
+        Write entire review. Be specific and constructive.
         """
         
         return prompt
     
     async def _call_llm_for_review(self, prompt: str) -> str:
-        """
-        Вызывает LLM для генерации финальной рецензии
-        
-        Args:
-            prompt: Промпт для LLM
-            
-        Returns:
-            str: Сгенерированная рецензия
-        """
+        """Оптимизированный вызов LLM для финальной рецензии"""
         try:
-            response = await self.client.chat(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                options={
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "num_predict": 1000
-                }
+            response = await asyncio.wait_for(
+                self.client.chat(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": self.system_prompt},
+                        {"role": "user", "content": prompt}
+                    ],
+                    options={
+                        "temperature": 0.3,  # Низкая температура для консистентности
+                        "top_p": 0.8,
+                        "num_predict": 400  # Ограничиваем для скорости
+                    }
+                ),
+                timeout=25.0  # 25 секунд максимум на финальную рецензию
             )
             
             return response['message']['content']
             
+        except asyncio.TimeoutError:
+            logger.error("LLM timeout for final review")
+            return "Превышено время ожидания при генерации рецензии"
         except Exception as e:
             logger.error(f"Error calling LLM for final review: {e}")
             raise e
     
     async def health_check(self) -> Dict[str, Any]:
-        """Проверяет работоспособность системы"""
+        """Быстрая проверка работоспособности системы"""
         health_status = {
             "orchestrator": "ok",
             "agents": {},
             "llm": "unknown"
         }
         
-        # Проверяем агентов
-        for name, agent in self.agents.items():
-            try:
-                # Простая проверка агента
-                health_status["agents"][name] = "ok"
-            except Exception as e:
-                health_status["agents"][name] = f"error: {e}"
+        # Быстрая проверка агентов
+        for name in self.agents.keys():
+            health_status["agents"][name] = "registered"
         
-        # Проверяем LLM
+        # Быстрая проверка LLM
         try:
-            test_response = await self._call_llm_for_review("Test message")
+            test_response = await asyncio.wait_for(
+                self._call_llm_for_review("Test"),
+                timeout=10.0
+            )
             health_status["llm"] = "ok"
         except Exception as e:
-            health_status["llm"] = f"error: {e}"
+            health_status["llm"] = f"error: {str(e)[:100]}"
         
         return health_status 

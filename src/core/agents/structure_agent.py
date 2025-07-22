@@ -1,185 +1,132 @@
-import re
 import logging
-from typing import Dict, Any, List, Tuple
+import os
+from typing import Dict, Any
+import ollama
 from .base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
 class StructureAgent(BaseAgent):
-    """Агент для анализа структуры научной статьи"""
+    """Агент для анализа структуры научной статьи с использованием LLM"""
     
-    def __init__(self):
+    def __init__(self, model_name: str = "llama3.2:3b"):
         super().__init__("StructureAgent")
-        self.expected_sections = [
-            "abstract", "introduction", "methodology", "method",
-            "results", "discussion", "conclusion", "references"
-        ]
+        self.model_name = model_name
         
-        # Паттерны для определения секций
-        self.section_patterns = {
-            "abstract": [
-                r"\babstract\b",
-                r"\bаннотация\b",
-                r"\bрезюме\b"
-            ],
-            "introduction": [
-                r"\bintroduction\b",
-                r"\bвведение\b",
-                r"\b1\.\s*введение\b",
-                r"\b1\.\s*introduction\b"
-            ],
-            "methodology": [
-                r"\bmethodology\b",
-                r"\bmethods?\b",
-                r"\bметодология\b",
-                r"\bметоды?\b",
-                r"\b2\.\s*методы?\b"
-            ],
-            "results": [
-                r"\bresults?\b",
-                r"\bрезультаты?\b",
-                r"\b3\.\s*результаты?\b"
-            ],
-            "discussion": [
-                r"\bdiscussion\b",
-                r"\bобсуждение\b",
-                r"\b4\.\s*обсуждение\b"
-            ],
-            "conclusion": [
-                r"\bconclusion\b",
-                r"\bзаключение\b",
-                r"\bвыводы?\b",
-                r"\b5\.\s*заключение\b"
-            ],
-            "references": [
-                r"\breferences?\b",
-                r"\bbibliography\b",
-                r"\bлитература\b",
-                r"\bсписок\s+литературы?\b"
-            ]
-        }
+        # Определяем хост для ollama в зависимости от окружения
+        if os.path.exists('/.dockerenv') or os.getenv('DOCKER_ENV'):
+            ollama_host = "http://ollama:11434"
+        else:
+            ollama_host = "http://localhost:11434"
+            
+        self.client = ollama.AsyncClient(host=ollama_host)
+        logger.info(f"StructureAgent initialized with ollama host: {ollama_host}")
+        
+        # Оптимизированный системный промпт на английском
+        self.system_prompt = """
+        You are an expert academic paper structure analyzer. Evaluate paper organization efficiently.
+        
+        Analyze:
+        1. Key sections presence (intro, methods, results, discussion, conclusion)
+        2. Logical flow and coherence
+        3. Academic standards compliance
+        
+        Be precise and structured in responses.
+        """
     
     async def analyze(self, text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        """Анализирует структуру статьи"""
-        logger.info("Starting structure analysis")
+        """Анализирует структуру статьи с помощью LLM"""
+        logger.info("Starting LLM-based structure analysis")
         
         try:
-            # Находим секции
-            found_sections = self._find_sections(text)
+            # Проверяем входные данные
+            if not text or not text.strip():
+                logger.warning("Empty text provided for structure analysis")
+                return {
+                    "error": "Пустой текст для анализа структуры",
+                    "found_sections": [],
+                    "missing_sections": [],
+                    "structure_quality": "poor",
+                    "coherence_score": 0.0,
+                    "completeness_score": 0.0,
+                    "recommendations": ["Загрузите текст статьи для анализа структуры"]
+                }
             
-            # Анализируем структуру
-            structure_quality = self._analyze_structure_quality(found_sections, text)
+            logger.info(f"Analyzing structure with LLM ({len(text)} chars from {len(text)} original)")
             
-            # Проверяем наличие обязательных секций
-            missing_sections = self._check_missing_sections(found_sections)
+            # Генерируем анализ через LLM
+            analysis_result = await self._analyze_with_llm(text)
             
-            # Оцениваем связность
-            coherence_score = self._assess_coherence(text, found_sections)
-            
-            result = {
-                "found_sections": found_sections,
-                "missing_sections": missing_sections,
-                "structure_quality": structure_quality,
-                "coherence_score": coherence_score,
-                "total_sections": len(found_sections),
-                "completeness_score": self._calculate_completeness_score(found_sections),
-                "recommendations": self._generate_recommendations(found_sections, missing_sections)
-            }
-            
-            logger.info(f"Structure analysis completed. Found {len(found_sections)} sections")
-            return result
+            logger.info("Structure analysis completed")
+            return analysis_result
             
         except Exception as e:
-            logger.error(f"Error in structure analysis: {e}")
+            logger.error(f"Error in structure analysis: {e}", exc_info=True)
             return {
                 "error": str(e),
                 "found_sections": [],
-                "missing_sections": self.expected_sections,
+                "missing_sections": [],
                 "structure_quality": "poor",
-                "coherence_score": 0.0
+                "coherence_score": 0.0,
+                "completeness_score": 0.0,
+                "recommendations": ["Произошла ошибка при анализе структуры"]
             }
     
-    def _find_sections(self, text: str) -> List[str]:
-        """Находит секции в тексте"""
-        found_sections = []
-        text_lower = text.lower()
+    async def _analyze_with_llm(self, text: str) -> Dict[str, Any]:
+        """Оптимизированный анализ структуры с помощью LLM"""
         
-        for section, patterns in self.section_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, text_lower, re.IGNORECASE):
-                    found_sections.append(section)
-                    break
+        # Компактный промпт для быстрого анализа
+        prompt = f"""
+        Analyze this academic paper structure:
+
+        {text}
+
+        Respond in exact format:
+
+        FOUND_SECTIONS: list sections found (e.g., abstract,introduction,methods,results,discussion,conclusion,references)
+
+        MISSING_SECTIONS: list key missing sections
+
+        QUALITY: one word (excellent/good/fair/poor)
+
+        COHERENCE: score 0.0-1.0
+
+        COMPLETENESS: score 0.0-1.0
+
+        RECOMMENDATIONS:
+        - specific recommendation 1
+        - specific recommendation 2
+        """
         
-        return list(set(found_sections))  # Убираем дубли
-    
-    def _check_missing_sections(self, found_sections: List[str]) -> List[str]:
-        """Проверяет отсутствующие обязательные секции"""
-        return [section for section in self.expected_sections if section not in found_sections]
-    
-    def _analyze_structure_quality(self, found_sections: List[str], text: str) -> str:
-        """Анализирует качество структуры"""
-        completeness = len(found_sections) / len(self.expected_sections)
-        
-        if completeness >= 0.8:
-            return "excellent"
-        elif completeness >= 0.6:
-            return "good"
-        elif completeness >= 0.4:
-            return "fair"
-        else:
-            return "poor"
-    
-    def _assess_coherence(self, text: str, found_sections: List[str]) -> float:
-        """Оценивает связность структуры (простая эвристика)"""
-        # Простая оценка на основе длины текста и количества секций
-        words_count = len(text.split())
-        if len(found_sections) == 0:
-            return 0.0
-        
-        avg_section_length = words_count / len(found_sections)
-        
-        # Нормализуем относительно ожидаемой длины секции (500-1000 слов)
-        if 500 <= avg_section_length <= 1000:
-            return 0.8
-        elif 300 <= avg_section_length <= 1500:
-            return 0.6
-        else:
-            return 0.4
-    
-    def _calculate_completeness_score(self, found_sections: List[str]) -> float:
-        """Вычисляет оценку полноты структуры"""
-        return len(found_sections) / len(self.expected_sections)
-    
-    def _generate_recommendations(self, found_sections: List[str], missing_sections: List[str]) -> List[str]:
-        """Генерирует рекомендации по улучшению структуры"""
-        recommendations = []
-        
-        if missing_sections:
-            recommendations.append(f"Добавьте отсутствующие разделы: {', '.join(missing_sections)}")
-        
-        if "abstract" not in found_sections:
-            recommendations.append("Статья должна содержать аннотацию/abstract")
-        
-        if "introduction" not in found_sections:
-            recommendations.append("Добавьте введение для обоснования актуальности исследования")
-        
-        if "references" not in found_sections:
-            recommendations.append("Обязательно включите список литературы")
-        
-        if len(found_sections) < 4:
-            recommendations.append("Структура статьи слишком простая, рассмотрите добавление дополнительных разделов")
-        
-        return recommendations
+        try:
+            response = await self.client.chat(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                options={
+                    "temperature": 0.1,  # Очень низкая температура для скорости и консистентности
+                    "top_p": 0.7,
+                    "num_predict": 1000  # Сильно ограничиваем для скорости
+                }
+            )
+            
+            return response['message']['content']
+            
+        except Exception as e:
+            logger.error(f"Error calling LLM for structure analysis: {e}")
+            raise e
+
     
     def get_prompt_template(self) -> str:
         """Возвращает шаблон промпта для оркестратора"""
         return """
-        Based on the structure analysis:
+        Structure Analysis Results:
         - Found sections: {found_sections}
-        - Missing sections: {missing_sections}
-        - Structure quality: {structure_quality}
-        - Completeness score: {completeness_score}
+        - Missing sections: {missing_sections} 
+        - Quality: {structure_quality}
+        - Coherence: {coherence_score}
+        - Completeness: {completeness_score}
         - Recommendations: {recommendations}
-        
-        Evaluate the structural organization of this academic paper.
         """ 
