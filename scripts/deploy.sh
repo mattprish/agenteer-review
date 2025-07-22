@@ -125,13 +125,13 @@ if [ $timeout -eq 0 ]; then
 fi
 
 # Загружаем модель
-echo "📥 Загрузка модели llama3.2:3b..."
-if docker exec ollama-server ollama list | grep -q "llama3.2:3b"; then
-    echo "✅ Модель llama3.2:3b уже загружена"
+echo "📥 Загрузка модели qwen3:4b..."
+if docker exec ollama-server ollama list | grep -q "qwen3:4b"; then
+    echo "✅ Модель qwen3:4b уже загружена"
 else
     echo "⏳ Загрузка модели... Это может занять несколько минут"
-    docker exec ollama-server ollama pull llama3.2:3b
-    echo "✅ Модель llama3.2:3b загружена"
+    docker exec ollama-server ollama pull qwen3:4b
+    echo "✅ Модель qwen3:4b загружена"
 fi
 
 # Запускаем основное приложение

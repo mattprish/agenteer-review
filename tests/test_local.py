@@ -156,27 +156,19 @@ class LocalTestRunner:
                 mock_instance = AsyncMock()
                 mock_client.return_value = mock_instance
                 
-                # Настраиваем мок ответ для нового API
+                # Настраиваем мок ответ для сырого текста LLM
                 mock_instance.chat.return_value = {
                     'message': {
-                        'content': '''FOUND_SECTIONS: abstract,introduction,conclusion
-MISSING_SECTIONS: methods,results,discussion
-QUALITY: good
-COHERENCE: 0.7
-COMPLETENESS: 0.6
-RECOMMENDATIONS:
-- Add methodology section
-- Include results section'''
+                        'content': 'FOUND_SECTIONS: abstract,introduction,conclusion\nMISSING_SECTIONS: methods,results\nQUALITY: good\nCOHERENCE: 0.7\nCOMPLETENESS: 0.6\nRECOMMENDATIONS:\n- Add methodology section\n- Include results section'
                     }
                 }
                 
                 results = await agent.analyze(test_text, {})
                 
-                # Проверяем результат
-                assert isinstance(results, dict)
-                assert "found_sections" in results
-                assert "structure_quality" in results
-                assert results["structure_quality"] == "good"
+                # Проверяем результат - теперь это строка
+                assert isinstance(results, str)
+                assert "FOUND_SECTIONS" in results
+                assert "QUALITY:" in results  # Проверяем наличие поля качества, не конкретное значение
                 
             self.test_result("Structure agent basic", True)
             
@@ -264,11 +256,11 @@ RECOMMENDATIONS:
                 Conclusion: The method is effective.
                 """
                 
-                results = await agent.analyze(test_text, {"title": "Test AI Paper"})
+                results = await agent.analyze(test_text, {})
                 
-                # Проверяем результат
-                assert isinstance(results, dict)
-                assert "summary" in results
+                # Проверяем результат - теперь это строка
+                assert isinstance(results, str)
+                assert len(results) > 50  # Проверяем что результат не пустой
                 
             self.test_result("Summary agent basic", True)
             

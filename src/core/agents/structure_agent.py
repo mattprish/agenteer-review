@@ -1,5 +1,6 @@
 import logging
 import os
+import asyncio
 from typing import Dict, Any
 import ollama
 from .base_agent import BaseAgent
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 class StructureAgent(BaseAgent):
     """Агент для анализа структуры научной статьи с использованием LLM"""
     
-    def __init__(self, model_name: str = "llama3.2:3b"):
+    def __init__(self, model_name: str = "qwen3:4b"):
         super().__init__("StructureAgent")
         self.model_name = model_name
         
@@ -34,7 +35,7 @@ class StructureAgent(BaseAgent):
         Be precise and structured in responses.
         """
     
-    async def analyze(self, text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    async def analyze(self, text: str, metadata: Dict[str, Any]) -> str:
         """Анализирует структуру статьи с помощью LLM"""
         logger.info("Starting LLM-based structure analysis")
         
@@ -42,19 +43,16 @@ class StructureAgent(BaseAgent):
             # Проверяем входные данные
             if not text or not text.strip():
                 logger.warning("Empty text provided for structure analysis")
-                return {
-                    "error": "Пустой текст для анализа структуры",
-                    "found_sections": [],
-                    "missing_sections": [],
-                    "structure_quality": "poor",
-                    "coherence_score": 0.0,
-                    "completeness_score": 0.0,
-                    "recommendations": ["Загрузите текст статьи для анализа структуры"]
-                }
+                return "ERROR: Empty text provided for structure analysis"
             
-            logger.info(f"Analyzing structure with LLM ({len(text)} chars from {len(text)} original)")
+            # Ограничиваем размер текста для быстрой обработки
+            max_chars = 8000  # Значительно меньше для скорости
+            if len(text) > max_chars:
+                text = text[:max_chars] + "... [text truncated for faster processing]"
             
-            # Генерируем анализ через LLM
+            logger.info(f"Analyzing structure with LLM ({len(text)} chars)")
+            
+            # Генерируем анализ через LLM с таймаутом
             analysis_result = await self._analyze_with_llm(text)
             
             logger.info("Structure analysis completed")
@@ -62,62 +60,55 @@ class StructureAgent(BaseAgent):
             
         except Exception as e:
             logger.error(f"Error in structure analysis: {e}", exc_info=True)
-            return {
-                "error": str(e),
-                "found_sections": [],
-                "missing_sections": [],
-                "structure_quality": "poor",
-                "coherence_score": 0.0,
-                "completeness_score": 0.0,
-                "recommendations": ["Произошла ошибка при анализе структуры"]
-            }
+            return f"ERROR: Structure analysis failed - {str(e)}"
     
-    async def _analyze_with_llm(self, text: str) -> Dict[str, Any]:
+    async def _analyze_with_llm(self, text: str) -> str:
         """Оптимизированный анализ структуры с помощью LLM"""
         
         # Компактный промпт для быстрого анализа
         prompt = f"""
-        Analyze this academic paper structure:
+        Analyze this academic paper structure briefly:
 
         {text}
 
-        Respond in exact format:
+        Respond in this format:
 
-        FOUND_SECTIONS: list sections found (e.g., abstract,introduction,methods,results,discussion,conclusion,references)
+        SECTIONS: list found sections
+        MISSING: key missing sections
+        QUALITY: excellent/good/fair/poor
+        COHERENCE: 0.0-1.0
+        RECOMMENDATIONS: 2-3 specific suggestions
 
-        MISSING_SECTIONS: list key missing sections
-
-        QUALITY: one word (excellent/good/fair/poor)
-
-        COHERENCE: score 0.0-1.0
-
-        COMPLETENESS: score 0.0-1.0
-
-        RECOMMENDATIONS:
-        - specific recommendation 1
-        - specific recommendation 2
+        Be concise.
         """
         
         try:
-            response = await self.client.chat(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                options={
-                    "temperature": 0.1,  # Очень низкая температура для скорости и консистентности
-                    "top_p": 0.7,
-                    "num_predict": 1000  # Сильно ограничиваем для скорости
-                }
+            # Добавляем агрессивный таймаут на вызов LLM
+            response = await asyncio.wait_for(
+                self.client.chat(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": self.system_prompt},
+                        {"role": "user", "content": prompt}
+                    ],
+                    options={
+                        "temperature": 0.1,  # Очень низкая температура для скорости
+                        "top_p": 0.7,
+                        "num_predict": 300,  # Еще меньше токенов для скорости
+                        "stop": ["\n\n\n"]  # Останавливаем на двойных переносах
+                    }
+                ),
+                timeout=30.0  # 30 секунд максимум на LLM вызов
             )
             
             return response['message']['content']
             
+        except asyncio.TimeoutError:
+            logger.error("LLM call timeout in structure analysis")
+            return "ERROR: Structure analysis timed out"
         except Exception as e:
             logger.error(f"Error calling LLM for structure analysis: {e}")
             raise e
-
     
     def get_prompt_template(self) -> str:
         """Возвращает шаблон промпта для оркестратора"""

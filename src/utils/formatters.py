@@ -67,75 +67,52 @@ def format_review(results: Dict[str, Any], metadata: Dict[str, Any] = None) -> s
         logger.error(f"Error formatting review: {e}")
         return format_error_message(f"Ошибка форматирования: {str(e)}")
 
-def format_structure_analysis(structure_results: Dict[str, Any]) -> str:
+def format_structure_analysis(structure_results) -> str:
     """Форматирует результаты анализа структуры"""
-    if "error" in structure_results:
-        return f"❌ *Ошибка анализа структуры:* {structure_results['error']}\n"
-    
     parts = ["🏗 *Анализ структуры статьи:*"]
     
-    # Найденные разделы
-    found_sections = structure_results.get("found_sections", [])
-    if found_sections:
-        parts.append(f"✅ *Найденные разделы:* {', '.join(found_sections)}")
+    # Агент теперь возвращает сырой текст LLM
+    if isinstance(structure_results, str):
+        if structure_results.startswith("ERROR:"):
+            parts.append(f"❌ *Ошибка:* {structure_results[6:].strip()}")
+        else:
+            # Показываем первые 400 символов анализа
+            analysis_text = structure_results[:400] + "..." if len(structure_results) > 400 else structure_results
+            parts.append(f"📄 *Анализ:*\n{analysis_text}")
+    elif isinstance(structure_results, dict) and "result" in structure_results:
+        result_text = structure_results["result"]
+        if result_text.startswith("ERROR:"):
+            parts.append(f"❌ *Ошибка:* {result_text[6:].strip()}")
+        else:
+            analysis_text = result_text[:400] + "..." if len(result_text) > 400 else result_text
+            parts.append(f"📄 *Анализ:*\n{analysis_text}")
     else:
-        parts.append("❌ *Разделы не найдены*")
-    
-    # Отсутствующие разделы
-    missing_sections = structure_results.get("missing_sections", [])
-    if missing_sections:
-        parts.append(f"⚠️ *Отсутствующие разделы:* {', '.join(missing_sections)}")
-    
-    # Качество структуры
-    quality = structure_results.get("structure_quality", "unknown")
-    quality_emoji = get_quality_emoji(quality)
-    parts.append(f"{quality_emoji} *Качество структуры:* {quality}")
-    
-    # Оценка полноты и связности
-    completeness = structure_results.get("completeness_score", 0)
-    if isinstance(completeness, (int, float)):
-        parts.append(f"📊 *Полнота структуры:* {completeness:.1%}")
-    
-    coherence = structure_results.get("coherence_score", 0)
-    if isinstance(coherence, (int, float)):
-        parts.append(f"🔗 *Связность:* {coherence:.1%}")
-    
-    # Рекомендации
-    recommendations = structure_results.get("recommendations", [])
-    if recommendations:
-        parts.append("\n💡 *Рекомендации по структуре:*")
-        for i, rec in enumerate(recommendations[:3], 1):  # Ограничиваем 3 рекомендациями
-            parts.append(f"{i}. {rec}")
+        parts.append("❌ *Неизвестный формат результата*")
     
     parts.append("")
     return "\n".join(parts)
 
-def format_summary_analysis(summary_results: Dict[str, Any]) -> str:
+def format_summary_analysis(summary_results) -> str:
     """Форматирует результаты анализа содержания"""
-    if "error" in summary_results:
-        return f"❌ *Ошибка анализа содержания:* {summary_results['error']}\n"
-    
     parts = ["📚 *Анализ содержания статьи:*"]
     
-    # Качество резюме
-    summary_quality = summary_results.get("summary_quality", "unknown")
-    quality_emoji = get_quality_emoji(summary_quality)
-    parts.append(f"{quality_emoji} *Качество резюме:* {summary_quality}")
-    
-    # Ключевые темы
-    key_topics = summary_results.get("key_topics", [])
-    if key_topics:
-        parts.append(f"🔍 *Ключевые темы:* {', '.join(key_topics[:5])}")
-    
-    # Степень сжатия
-    compression_ratio = summary_results.get("compression_ratio", 0)
-    if isinstance(compression_ratio, (int, float)):
-        parts.append(f"📏 *Степень сжатия:* {compression_ratio:.1%}")
-    
-    # Резюме статьи (если не слишком длинное)
-    summary_text = summary_results.get("summary", "")
-    if summary_text and len(summary_text) < 800:
-        parts.append(f"\n📄 *Краткое резюме:*\n{summary_text[:600]}...")
+    # Агент теперь возвращает сырой текст LLM
+    if isinstance(summary_results, str):
+        if summary_results.startswith("ERROR:"):
+            parts.append(f"❌ *Ошибка:* {summary_results[6:].strip()}")
+        else:
+            # Показываем первые 500 символов резюме
+            summary_text = summary_results[:500] + "..." if len(summary_results) > 500 else summary_results
+            parts.append(f"📖 *Резюме:*\n{summary_text}")
+    elif isinstance(summary_results, dict) and "result" in summary_results:
+        result_text = summary_results["result"]
+        if result_text.startswith("ERROR:"):
+            parts.append(f"❌ *Ошибка:* {result_text[6:].strip()}")
+        else:
+            summary_text = result_text[:500] + "..." if len(result_text) > 500 else result_text
+            parts.append(f"📖 *Резюме:*\n{summary_text}")
+    else:
+        parts.append("❌ *Неизвестный формат результата*")
     
     parts.append("")
     return "\n".join(parts)

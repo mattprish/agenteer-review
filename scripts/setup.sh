@@ -41,13 +41,13 @@ fi
 echo "🔍 Проверка Ollama..."
 if command -v ollama &> /dev/null; then
     echo "✅ Ollama найден"
-    echo "📥 Попытка загрузки модели llama3.2:3b..."
-    ollama pull llama3.2:3b
+    echo "📥 Попытка загрузки модели qwen3:4b..."
+    ollama pull qwen3:4b
 else
     echo "⚠️ Ollama не найден. Установите Ollama:"
     echo "   Linux/Mac: curl -fsSL https://ollama.com/install.sh | sh"
     echo "   Windows: https://ollama.com"
-    echo "   Затем выполните: ollama pull llama3.2:3b"
+    echo "   Затем выполните: ollama pull qwen3:4b"
 fi
 
 echo ""

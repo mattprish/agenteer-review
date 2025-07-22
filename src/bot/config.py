@@ -10,7 +10,7 @@ class Config:
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
     
     # Models
-    ORCHESTRATOR_MODEL: str = "llama3.2:3b"
+    ORCHESTRATOR_MODEL: str = "qwen3:4b"
     STRUCTURE_MODEL: str = "allenai/scibert_scivocab_uncased"
     
     # Limits

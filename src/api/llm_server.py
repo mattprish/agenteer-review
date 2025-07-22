@@ -69,7 +69,7 @@ async def startup_event():
     # Регистрируем агентов в оркестраторе
     try:
         # Инициализируем агентов с одной моделью для консистентности
-        model_name = "llama3.2:3b"
+        model_name = "qwen3:4b"
         structure_agent = StructureAgent(model_name=model_name)
         summary_agent = SummaryAgent(model_name=model_name)
         

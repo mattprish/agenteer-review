@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class Orchestrator:
     """Оркестратор для управления процессом рецензирования"""
     
-    def __init__(self, model_name: str = "llama3.2:3b"):
+    def __init__(self, model_name: str = "qwen3:4b"):
         self.model_name = model_name
         self.agents: Dict[str, BaseAgent] = {}
         
@@ -126,19 +126,16 @@ class Orchestrator:
                     "status": "failed"
                 }
             else:
-                if isinstance(result, dict):
-                    agent_results[name] = result
-                    agent_results[name]["status"] = "success"
-                else:
-                    agent_results[name] = {
-                        "result": result,
-                        "status": "success"
-                    }
+                # Агенты теперь возвращают сырой текст
+                agent_results[name] = {
+                    "result": result,
+                    "status": "success"
+                }
         
         logger.info(f"Completed {len(agent_results)} agent tasks")
         return agent_results
     
-    async def _run_single_agent(self, agent: BaseAgent, text: str, metadata: Dict[str, Any], agent_name: str) -> Dict[str, Any]:
+    async def _run_single_agent(self, agent: BaseAgent, text: str, metadata: Dict[str, Any], agent_name: str) -> str:
         """Запускает отдельного агента с агрессивным таймаутом"""
         try:
             logger.info(f"Starting agent: {agent_name}")
@@ -146,8 +143,13 @@ class Orchestrator:
             # Агрессивный таймаут для каждого агента
             result = await asyncio.wait_for(
                 agent.analyze(text, metadata),
-                timeout=45.0  # 45 секунд на агента
+                timeout=40.0  # 40 секунд на агента (меньше чем раньше)
             )
+            
+            # Проверяем, не вернул ли агент ошибку
+            if isinstance(result, str) and result.startswith("ERROR:"):
+                logger.warning(f"Agent {agent_name} returned error: {result}")
+                raise Exception(f"Agent error: {result}")
             
             logger.info(f"Agent {agent_name} completed successfully")
             return result
@@ -164,6 +166,13 @@ class Orchestrator:
         logger.info("Generating final review")
         
         try:
+            # Проверяем, есть ли успешные результаты от агентов
+            successful_results = {k: v for k, v in agent_results.items() if v.get("status") == "success"}
+            
+            if not successful_results:
+                logger.warning("No successful agent results, generating basic review")
+                return self._generate_fallback_review()
+            
             # Быстрая подготовка сводки на английском для LLM
             summary_data = self._prepare_english_summary(agent_results)
             
@@ -179,37 +188,57 @@ class Orchestrator:
             logger.error(f"Error generating final review: {e}")
             return f"Ошибка при генерации рецензии: {str(e)}"
     
+    def _generate_fallback_review(self) -> str:
+        """Генерирует базовую рецензию когда агенты не работают"""
+        return """
+Academic Paper Review
+
+Overall assessment: The paper has been processed but detailed analysis encountered technical limitations.
+
+Strengths:
+- Document structure appears to follow academic standards
+- Content is presented in organized format
+
+Weaknesses:
+- Detailed analysis could not be completed due to processing constraints
+- Specific recommendations require manual review
+
+Recommendations:
+- Consider manual peer review for detailed feedback
+- Verify all required sections are present and complete
+- Check references and citations for accuracy
+        """.strip()
+    
     def _prepare_english_summary(self, agent_results: Dict[str, Any]) -> str:
         """Быстрая подготовка сводки на английском для LLM"""
         summary_parts = []
         
         for agent_name, result in agent_results.items():
             if result.get("status") == "failed":
-                summary_parts.append(f"• {agent_name}: analysis failed")
+                summary_parts.append(f"• {agent_name}: analysis failed - {result.get('error', 'unknown error')}")
                 continue
             
+            # Агенты теперь возвращают сырой текст
+            agent_result_text = result.get("result", "")
+            
             if agent_name == "StructureAgent":
-                quality = result.get("structure_quality", "unknown")
-                completeness = result.get("completeness_score", 0)
-                coherence = result.get("coherence_score", 0)
-                missing = result.get("missing_sections", [])
-                
-                summary_parts.append(f"• Structure: {quality} quality")
-                summary_parts.append(f"  Completeness: {completeness:.1%}, Coherence: {coherence:.1%}")
-                if missing:
-                    summary_parts.append(f"  Missing: {', '.join(missing[:3])}")
+                summary_parts.append(f"• Structure Analysis:")
+                if len(agent_result_text) > 300:
+                    summary_parts.append(f"  {agent_result_text[:300]}...")
+                else:
+                    summary_parts.append(f"  {agent_result_text}")
             
             elif agent_name == "SummaryAgent":
-                quality = result.get("summary_quality", "unknown")
-                topics = result.get("key_topics", [])
-                compression = result.get("compression_ratio", 0)
-                
-                summary_parts.append(f"• Content: {quality} summary quality")
-                summary_parts.append(f"  Compression: {compression:.1%}")
-                if topics:
-                    summary_parts.append(f"  Key topics: {', '.join(topics[:3])}")
+                summary_parts.append(f"• Content Summary:")
+                if len(agent_result_text) > 400:
+                    summary_parts.append(f"  {agent_result_text[:400]}...")
+                else:
+                    summary_parts.append(f"  {agent_result_text}")
         
-        return "\n".join(summary_parts) if summary_parts else "Analysis incomplete"
+        if not summary_parts:
+            return "Analysis incomplete - no successful agent results"
+        
+        return "\n".join(summary_parts)
     
     def _build_review_prompt(self, agent_summary: str) -> str:
         """Компактный промпт для быстрой генерации рецензии на русском"""
@@ -219,6 +248,7 @@ class Orchestrator:
 
         Create a comprehensive review with this structure:
 
+        Paper name
         Overall assessment: (1-2 sentences overall assessment)
 
         Strengths:

@@ -74,7 +74,7 @@ cd docker && docker-compose up -d
 - Python 3.11+
 - Docker & Docker Compose
 - Telegram Bot Token
-- Ollama с llama3.2:3b
+- Ollama с qwen3:4b
 
 ## 🎯 Основные возможности
 
