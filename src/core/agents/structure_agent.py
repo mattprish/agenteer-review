@@ -4,7 +4,7 @@ import asyncio
 from typing import Dict, Any
 import ollama
 from .base_agent import BaseAgent
-TIMER_FOR_LLM_CALL = 120.0
+TIMER_FOR_LLM_CALL = 180.0
 NUM_PREDICT_FOR_LLM_CALL = 1000
 
 logger = logging.getLogger(__name__)

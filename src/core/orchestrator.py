@@ -8,7 +8,7 @@ from .agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
-TIMER_FOR_LLM_CALL = 120.0
+TIMER_FOR_LLM_CALL = 180.0
 NUM_PREDICT_FOR_LLM_CALL = 1000
 
 class Orchestrator:
@@ -63,7 +63,7 @@ class Orchestrator:
             agent_results = await self._run_agents_parallel(text, empty_metadata)
             logger.info(f"Agent analysis completed")
             
-            # 2. Быстрая генерация финального отчета на русском
+            # 2. Быстрая генерация финального отчета
             final_review = await self._generate_final_review(agent_results)
             logger.info(f"Final review generated")
             
