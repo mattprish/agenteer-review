@@ -45,7 +45,7 @@ class Orchestrator:
         self.agents[name] = agent
         logger.info(f"Registered agent: {name}")
     
-    async def process_paper(self, text: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def run(self, text: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """Основной метод обработки статьи с максимальной оптимизацией"""
         logger.info("Starting optimized paper processing")
         
