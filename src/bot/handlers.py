@@ -251,6 +251,7 @@ async def process_file_async(message: Message, document: Document, progress_mess
             text=pdf_result["text"]
             # metadata=pdf_result["metadata"]
         )
+        print(review_result)
         
         if not review_result.get("success", False):
             await progress_message.edit_text(
@@ -264,7 +265,7 @@ async def process_file_async(message: Message, document: Document, progress_mess
         # Форматируем и отправляем результат
         formatted_review = format_review(
             review_result["results"],
-            pdf_result["metadata"],
+            None,
             verbose=verbose
         )
         

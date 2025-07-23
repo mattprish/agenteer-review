@@ -18,12 +18,12 @@ from core.agents.structure_agent import StructureAgent
 from core.agents.summary_agent import SummaryAgent
 
 # --- НАСТРОЙКА: просто меняйте этот флаг для переключения ---
-USE_OLLAMA = True  # True — использовать Ollama, False — кастомный url
+USE_OLLAMA = False  # True — использовать Ollama, False — кастомный url
 
 # Пример ваших промптов для агентов
 agents_prompts = {
-    "AbstractAgent": "PROMPT 1",
-    "MethodologyAgent": "PROMPT 2",
+    "AbstractAgent": "find abdstract",
+    "MethodologyAgent": "print methodology",
     "ResultsAgent": "PROMPT 3",
     "LanguageAgent": "PROMPT 4",
     "CitationAgent": "PROMPT 5",
@@ -46,7 +46,7 @@ class ReviewResponseOld(BaseModel):
     results: Dict[str, Any] = {}
     error: str = ""
 
-ReviewResponce = None
+ReviewResponce = ReviewResponseOld
 
 async def ollama_start():
     if os.path.exists('/.dockerenv') or os.getenv('DOCKER_ENV'):
@@ -79,17 +79,17 @@ async def ollama_start():
         logger.error(f"Error registering agents: {e}")
 
 async def new_start():
-    model_url = "https://8d586b648815.ngrok-free.app/v1"
+    model_url = "https://70941f5dfbfb.ngrok-free.app"
     model_name = "qwen/qwen3-4b"
     logger.info(f"Using CUSTOM url: {model_url} (model: {model_name})")
 
     # Инициализация агентов и оркестратора
     agents = [
         BaseAgent_v2("AbstractAgent", model_url, model_name, agents_prompts["AbstractAgent"]),
-        BaseAgent_v2("MethodologyAgent", model_url, model_name, agents_prompts["MethodologyAgent"]),
-        BaseAgent_v2("ResultsAgent", model_url, model_name, agents_prompts["ResultsAgent"]),
-        BaseAgent_v2("LanguageAgent", model_url, model_name, agents_prompts["LanguageAgent"]),
-        BaseAgent_v2("CitationAgent", model_url, model_name, agents_prompts["CitationAgent"]),
+        # BaseAgent_v2("MethodologyAgent", model_url, model_name, agents_prompts["MethodologyAgent"])
+        # BaseAgent_v2("ResultsAgent", model_url, model_name, agents_prompts["ResultsAgent"]),
+        # BaseAgent_v2("LanguageAgent", model_url, model_name, agents_prompts["LanguageAgent"]),
+        # BaseAgent_v2("CitationAgent", model_url, model_name, agents_prompts["CitationAgent"]),
     ]
     ReviewResponce = ReviewResponseNew
     orchestrator = Orchestrator_v2(model_url, model_name, agents)
@@ -116,9 +116,10 @@ async def health_check():
 async def review_paper(request: ReviewRequest):
     try:
         orchestrator = app.state.orchestrator
+        print(type(request.text))
         results = await orchestrator.run(request.text)
         
-        return ReviewResponce(success=True, results=results['agent_results'])
+        return ReviewResponce(success=True, results=results)
     except Exception as e:
         logger.error(f"Error in review: {e}")
         raise HTTPException(status_code=500, detail=str(e))
