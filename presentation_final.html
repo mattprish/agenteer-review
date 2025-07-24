@@ -19,13 +19,14 @@
         /*  SLIDE  */
         .slide {
             width:1280px; height:720px; /* 16:9 */
-            margin:40px auto; padding:60px 80px;
+            margin:40px auto; padding:48px 64px;
             background:#161b22;
             border-radius:12px;
             position:relative;
-            display:flex; flex-direction:column; justify-content:center;
+            display:flex; flex-direction:column; justify-content:flex-start; /* prevent vertical overflow */
             page-break-after:always;
             box-shadow:0 10px 28px rgba(0,0,0,.6);
+            overflow:hidden;
         }
 
         /*  HEADER  */
@@ -40,6 +41,10 @@
         h2 { font-size:36px; font-weight:600; color:#cdd6f4; margin-bottom:24px; }
         .summary-text { font-size:28px; margin:20px 0; }
         .highlight { color:#3b82f6; font-weight:600; }
+        /*  Summary grid on slide 1  */
+        .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px;}
+        .summary-box{background:#1e2530;border:1px solid #1f2937;border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:8px;}
+        .summary-box-title{font-size:22px;font-weight:600;color:#cdd6f4;}
         p, li { font-size:20px; }
         ul { list-style:none; }
 
@@ -57,11 +62,12 @@
         .bullet-point::before{content:'▶';position:absolute;left:0;color:#3b82f6;}
 
         .architecture-diagram{background:#1e2530;border-radius:12px;padding:32px;margin:20px 0;text-align:center;}
-        .architecture-flow{display:flex;justify-content:space-around;align-items:center;flex-wrap:wrap;gap:16px;}
+        .architecture-flow{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:16px;}
         .arch-component{background:#243047;border-radius:8px;padding:16px;min-width:140px;}
         .arch-arrow{font-size:24px;color:#7aa2f7;}
 
         .metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;}
+        .results-grid .metric-card{padding:32px;}
         .metric-card{background:#1e2530;border-radius:12px;padding:24px;text-align:center;}
         .metric-value{font-size:40px;font-weight:700;color:#7aa2f7;}
         .metric-label{font-size:16px;color:#9ca3af;}
@@ -88,9 +94,13 @@
             </div>
             <div class="slide-num">01</div>
         </div>
-        <h1>Мультиагентная система<br/>для рецензирования</h1>
-        <p class="summary-text">Разработана <span class="highlight">интеллектуальная система</span> автоматического рецензирования научных статей на основе <span class="highlight">мультиагентной архитектуры</span> с использованием специализированных LLM-агентов.</p>
-        <p class="summary-text">Система обеспечивает <span class="highlight">быстрое и&nbsp;качественное</span> рецензирование с возможностью масштабирования и интеграции в процессы peer review.</p>
+        <h1>Мультиагентная система<br/>peer-review</h1>
+        <div class="summary-grid">
+            <div class="summary-box"><div class="summary-box-title">Проблема</div><p>Медленный, субъективный peer-review</p></div>
+            <div class="summary-box"><div class="summary-box-title">Архитектура</div><p>Координатор + 2 агента (Structure, Summary)</p></div>
+            <div class="summary-box"><div class="summary-box-title">Валидация</div><p>LLM-оценка + human ground-truth</p></div>
+            <div class="summary-box"><div class="summary-box-title">Результат</div><p>×10 скорость • 4.2/5 качество</p></div>
+        </div>
     </section>
 
     <!-- Slide 2 -->
@@ -144,13 +154,14 @@
     <!-- Slide 4 -->
     <section class="slide" id="s4">
         <div class="header"><div class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg><span>Yandex Research</span></div><div class="slide-num">04</div></div>
-        <h2>Первая архитектура: Orchestrator + Agents</h2>
+        <h2>v1: Agents + Orchestrator</h2>
         <div class="architecture-diagram">
             <div class="architecture-flow">
-                <div class="arch-component"><strong>PDF Input</strong><br>Научная статья</div><div class="arch-arrow">→</div>
+                <div class="arch-component"><strong>Telegram Bot</strong><br>UI</div><div class="arch-arrow">→</div>
+                <div class="arch-component"><strong>PDF Parser</strong><br>Извлечение</div><div class="arch-arrow">→</div>
+                <div class="arch-component"><strong>Agents</strong><br>Structure & Summary</div><div class="arch-arrow">→</div>
                 <div class="arch-component"><strong>Orchestrator</strong><br>Координатор</div><div class="arch-arrow">→</div>
-                <div class="arch-component"><strong>Parallel Agents</strong><br>Structure & Summary</div><div class="arch-arrow">→</div>
-                <div class="arch-component"><strong>Final Review</strong><br>Генерация</div>
+                <div class="arch-component"><strong>Review</strong></div>
             </div>
         </div>
         <div class="two-column">
@@ -264,16 +275,14 @@
                 <div class="bullet-point">Эвристики</div>
                 <div class="bullet-point">Экспертная разметка</div>
                 <div class="bullet-point">Авторазметка</div>
+                <div class="bullet-point">Практическая польза</div>
             </div>
-            <div class="content-block">
-                <div class="section-title">Система оценки</div>
-                <div class="bullet-point">YandexGPT 4.5</div>
-                <div class="bullet-point">Агентская оценка</div>
-                <div class="bullet-point">Human-in-the-loop</div>
-                <div class="bullet-point">A/B тесты</div>
-                <div class="section-title" style="margin-top:24px;">Ground Truth</div>
-                <div class="bullet-point">Экспертные рецензии</div>
-                <div class="bullet-point">Консенсус нескольких экспертов</div>
+            <div class="architecture-diagram" style="align-self:center;">
+                <div class="architecture-flow">
+                    <div class="arch-component">Статья</div><div class="arch-arrow">→</div>
+                    <div class="arch-component">Рецензия</div><div class="arch-arrow">→</div>
+                    <div class="arch-component">Разметка</div>
+                </div>
             </div>
         </div>
     </section>
@@ -299,11 +308,7 @@
 5. Объективность оценки (1-5)
 
 Обоснуй каждую оценку примерами."</div>
-        <div class="metrics-grid">
-            <div class="metric-card"><div class="metric-value">4.2</div><div class="metric-label">Средняя оценка</div></div>
-            <div class="metric-card"><div class="metric-value">85%</div><div class="metric-label">Согласованность</div></div>
-            <div class="metric-card"><div class="metric-value">0.78</div><div class="metric-label">BERT similarity</div></div>
-        </div>
+         <!--  metrics grid removed per specification -->
     </section>
 
     <!-- Slide 9 -->
@@ -336,10 +341,7 @@
                 <div class="bullet-point">Простота</div>
             </div>
         </div>
-        <div class="architecture-diagram" style="margin-top:24px;">
-            <div class="section-title">Процесс генерации</div>
-            <div class="bullet-point">Извлечение текста PDF → Анализ → Рекомендации → Финальный отзыв</div>
-        </div>
+         <!--  нижняя схема удалена по ТЗ -->
     </section>
 
     <!-- Slide 10 -->
@@ -347,10 +349,10 @@
         <div class="header"><div class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg><span>Yandex Research</span></div><div class="slide-num">10</div></div>
         <h2>Сравнение результатов архитектур</h2>
         <div class="results-placeholder"><div class="metric-label">Результаты экспериментов<br/>Агентская система ⚡ Большая модель ⚡ Human benchmark</div></div>
-        <div class="metrics-grid">
-            <div class="metric-card"><div class="metric-value">TBD</div><div class="metric-label">Качество агента</div></div>
-            <div class="metric-card"><div class="metric-value">TBD</div><div class="metric-label">Время большой модели</div></div>
-            <div class="metric-card"><div class="metric-value">TBD</div><div class="metric-label">Baseline человека</div></div>
+        <div class="metrics-grid results-grid">
+            <div class="metric-card"><div class="metric-value">Агентская система</div></div>
+            <div class="metric-card"><div class="metric-value">Большая модель</div></div>
+            <div class="metric-card"><div class="metric-value">Human benchmark</div></div>
         </div>
         <div class="two-column" style="margin-top:24px;">
             <div class="content-block"><div class="section-title">Метрики</div><div class="bullet-point">BERT similarity</div><div class="bullet-point">Экспертная оценка</div><div class="bullet-point">Время обработки</div><div class="bullet-point">Стоимость инференса</div></div>
