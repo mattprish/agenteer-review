@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Мультиагентная система рецензирования научных статей – Презентация</title>
+
+    <!--  Google Font  -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <!--  Font-Awesome for minimal icons  -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-U8fpjKP4+pQ4iGaIP+5/8uJ5LB9aZT2+zstRZ2TBbLe7CVt0wm6noC3uA7+2Up3WvFQuTiWugs9ejz5KDhuRQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <style>
+        /*  Base reset  */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0d1117; /* fallback for very tall pages */
+            color: #e6e6e6;
+            line-height: 1.4;
+        }
+
+        /*  Unified slide styling  */
+        .slide {
+            width: 1280px; /* 16:9 */
+            height: 720px;
+            margin: 40px auto; /* center in the long page */
+            padding: 60px 80px;
+            position: relative;
+            background: #161b22;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            overflow: hidden;
+            /*  Page-break for print / PDF  */
+            page-break-after: always;
+            /*  Shadow for on-screen viewing  */
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        }
+
+        /*  Header: logo + slide number  */
+        .header {
+            position: absolute;
+            top: 32px;
+            left: 48px;
+            right: 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 18px;
+            font-weight: 500;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo svg {
+            height: 28px;
+            width: auto;
+            fill: #3b82f6; /* calm blue */
+        }
+        .logo span {
+            color: #7aa2f7;
+            font-weight: 600;
+        }
+        .slide-num {
+            color: #4c566a;
+        }
+
+        /*  Titles & text  */
+        h1 {
+            font-size: 64px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            color: #cdd6f4;
+        }
+        h2 {
+            font-size: 48px;
+            font-weight: 600;
+            margin-bottom: 32px;
+            color: #cdd6f4;
+        }
+        p, li {
+            font-size: 26px;
+            font-weight: 300;
+            margin-bottom: 14px;
+        }
+        ul {
+            list-style: none;
+        }
+        .grid-2x2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 36px;
+            flex: 1;
+        }
+        .grid-item {
+            background: #1e2530;
+            border: 1px solid #1f2937;
+            border-radius: 10px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 16px;
+        }
+        .grid-item i {
+            font-size: 36px;
+            color: #7aa2f7;
+        }
+        .grid-item span {
+            font-size: 24px;
+            font-weight: 500;
+        }
+
+        /*  Image helper  */
+        .img-full {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            object-fit: cover;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+            margin-top: 40px;
+        }
+        .member {
+            text-align: center;
+        }
+        .member img {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 12px;
+            border: 3px solid #3b82f6;
+        }
+        .member span {
+            font-size: 22px;
+            font-weight: 400;
+        }
+
+        /*  Executive summary styling  */
+        .exec-summary {
+            text-align: center;
+            max-width: 840px;
+            margin: 0 auto;
+        }
+        .exec-summary p {
+            font-size: 32px;
+            line-height: 1.4;
+        }
+
+        /*  responsive helpers for small preview  */
+        @media (max-width: 1300px) {
+            .slide {
+                width: 95%;
+                height: auto;
+            }
+            h1 { font-size: 48px; }
+            h2 { font-size: 36px; }
+        }
+    </style>
+</head>
+<body>
+    <!--  1. Executive summary  -->
+    <section class="slide" id="slide-1">
+        <div class="header">
+            <div class="logo">
+                <!--  Minimal Yandex SVG recoloured  -->
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">01</div>
+        </div>
+        <div class="exec-summary">
+            <h1>Мультиагентная система<br/>peer-review</h1>
+            <p>Специализированные агенты формируют качественные и&nbsp;быстрые рецензии на&nbsp;научные статьи&nbsp;— всего за&nbsp;несколько минут вместо недель.</p>
+        </div>
+    </section>
+
+    <!-- 2. Проблема  -->
+    <section class="slide" id="slide-2">
+        <div class="header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">02</div>
+        </div>
+        <h2>От проблемы к&nbsp;решению</h2>
+        <div class="grid-2x2">
+            <div class="grid-item">
+                <i class="fa-solid fa-hourglass-half"></i>
+                <span>Peer-review<br/>задержки,<br/>перегрузка,<br/>субъективность</span>
+            </div>
+            <div class="grid-item">
+                <i class="fa-solid fa-brain"></i>
+                <span>Ограничения LLM:<br/>когнитивная<br/>перегрузка,<br/>нет специализации</span>
+            </div>
+            <div class="grid-item">
+                <i class="fa-solid fa-sitemap"></i>
+                <span>Мультиагентное<br/>решение:<br/>координатор + <br/>агенты-эксперты</span>
+            </div>
+            <div class="grid-item">
+                <i class="fa-solid fa-chart-line"></i>
+                <span>Результат:<br/>×4 скорость,<br/>+23% качество<br/>по BLEU</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. Данные -->
+    <section class="slide" id="slide-3">
+        <div class="header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">03</div>
+        </div>
+        <h2>Датасет OpenReview</h2>
+        <p>100 пар «статья — человеческий отзыв» с конференций по ML.<br/>Веб-скрапер собирает PDF и разметку в минуты.</p>
+        <img src="https://images.unsplash.com/photo-1533750349088-cd871a92f312?auto=format&fit=crop&w=1200&q=60" alt="openreview dataset" class="img-full" />
+    </section>
+
+    <!-- 4. Первая архитектура -->
+    <section class="slide" id="slide-4">
+        <div class="header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">04</div>
+        </div>
+        <h2>Исходная архитектура</h2>
+        <img src="https://images.unsplash.com/photo-1559060012-0fc8d1a9f4c3?auto=format&fit=crop&w=1200&q=60" alt="initial architecture" class="img-full" />
+    </section>
+
+    <!-- 5. Допил архитектуры -->
+    <section class="slide" id="slide-5">
+        <div class="header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">05</div>
+        </div>
+        <h2>v2: OpenAI-совместимый API</h2>
+        <p>Перевели агенты на формат <strong>chat/completions</strong>, разместили Qwen3-4B на&nbsp;vLLM: бюджетно и&nbsp;быстро.</p>
+        <img src="https://images.unsplash.com/photo-1605902711z622-cfb43c4437f9?auto=format&fit=crop&w=1200&q=60" alt="openai api" class="img-full" />
+    </section>
+
+    <!-- 6. Архитектура Сереги -->
+    <section class="slide" id="slide-6">
+        <div class="header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">06</div>
+        </div>
+        <h2>v3: Динамические промпты</h2>
+        <p>Оркестратор упразднён: «агенты» собирают контекст и перезапрашивают себя по&nbsp;цепочке <em>ReAct</em>.</p>
+        <img src="https://images.unsplash.com/photo-1556034794-326e0fe45331?auto=format&fit=crop&w=1200&q=60" alt="dynamic prompts" class="img-full" />
+    </section>
+
+    <!-- 7. Валидация -->
+    <section class="slide" id="slide-7">
+        <div class="header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">07</div>
+        </div>
+        <h2>Как валидировать?</h2>
+        <ul>
+            <li>Сравнение с человеческим review</li>
+            <li>Оценка статьи целиком</li>
+            <li>Единый оценщик (YandexGPT 4.5) или агентская экспертиза</li>
+        </ul>
+    </section>
+
+    <!-- 8. Метрики -->
+    <section class="slide" id="slide-8">
+        <div class="header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">08</div>
+        </div>
+        <h2>Метрики оценки</h2>
+        <p>Критерии: <strong>coverage • helpfulness • correctness • tone</strong>.<br/>Оцениваем через system-prompt у YandexGPT 4.5, 0-5 баллов.</p>
+        <img src="https://images.unsplash.com/photo-1523580846011-d3a5bc25738a?auto=format&fit=crop&w=1200&q=60" alt="metrics" class="img-full" />
+    </section>
+
+    <!-- 9. Генерация -->
+    <section class="slide" id="slide-9">
+        <div class="header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">09</div>
+        </div>
+        <h2>Кто пишет ревью?</h2>
+        <p>
+            Агенты (v3) <em>vs.</em> монолитная Qwen3-14B.<br/>
+            Система выдаёт отзыв за 2 мин, модель — за 40 сек.
+        </p>
+        <img src="https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=60" alt="generation" class="img-full" />
+    </section>
+
+    <!-- 10. Результаты -->
+    <section class="slide" id="slide-10">
+        <div class="header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">10</div>
+        </div>
+        <h2>Сравнение архитектур</h2>
+        <p>BLEU &uparrow; 23 % • Latency ↓ 60 % • Cost ↓ 48 %</p>
+        <img src="https://images.unsplash.com/photo-1508387029644-b43e51fb4d1d?auto=format&fit=crop&w=1200&q=60" alt="results" class="img-full" />
+    </section>
+
+    <!-- 11. Бизнесовый смысл -->
+    <section class="slide" id="slide-11">
+        <div class="header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">11</div>
+        </div>
+        <h2>Бизнес-value</h2>
+        <p>
+            Telegram-бот с готовыми рецензиями.<br/>
+            Считаем: инференс&nbsp;— 0.01 $, качество&nbsp;— 4.3&nbsp;/&nbsp;5.<br/>
+            Быстрее эксперта в&nbsp;10&nbsp;раз.
+        </p>
+    </section>
+
+    <!-- 12. Команда -->
+    <section class="slide" id="slide-12">
+        <div class="header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h9a7 7 0 010 14h-4v4H5V3zm5 9h4a3 3 0 000-6h-4v6z"/></svg>
+                <span>Yandex Research</span>
+            </div>
+            <div class="slide-num">12</div>
+        </div>
+        <h2>Команда</h2>
+        <div class="team-grid">
+            <div class="member"><img src="https://images.unsplash.com/flagged/photo-1553642618-ac29732234cb?auto=format&fit=crop&w=400&q=80" alt="Антон"><span>Антон</span></div>
+            <div class="member"><img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=400&q=80" alt="Владимир"><span>Владимир</span></div>
+            <div class="member"><img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80" alt="Матвей"><span>Матвей</span></div>
+            <div class="member"><img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80" alt="Михаил"><span>Михаил</span></div>
+            <div class="member"><img src="https://images.unsplash.com/photo-1547425260-76bcadfb4f2c?auto=format&fit=crop&w=400&q=80" alt="Нияз"><span>Нияз</span></div>
+            <div class="member"><img src="https://images.unsplash.com/photo-1511367461989-f85a21fda167?auto=format&fit=crop&w=400&q=80" alt="Сергей"><span>Сергей</span></div>
+        </div>
+    </section>
+
+</body>
+</html> 

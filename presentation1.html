@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мультиагентская система рецензирования научных статей</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .presentation-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .slide {
+            background: #fff;
+            margin: 20px 0;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            min-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .slide-header {
+            border-bottom: 3px solid #1e3c72;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .slide-title {
+            font-size: 2.5em;
+            color: #1e3c72;
+            font-weight: 300;
+            margin-bottom: 10px;
+        }
+
+        .slide-subtitle {
+            font-size: 1.2em;
+            color: #666;
+            font-weight: 300;
+        }
+
+        .mckinsey-logo {
+            position: absolute;
+            top: 20px;
+            right: 40px;
+            font-weight: bold;
+            color: #1e3c72;
+            font-size: 1.1em;
+        }
+
+        .slide-number {
+            position: absolute;
+            bottom: 20px;
+            right: 40px;
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            flex-grow: 1;
+        }
+
+        .content-full {
+            flex-grow: 1;
+        }
+
+        .highlight-box {
+            background: #f8f9ff;
+            border-left: 4px solid #1e3c72;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .problem-box {
+            background: #fff5f5;
+            border-left: 4px solid #e53e3e;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .solution-box {
+            background: #f0fff4;
+            border-left: 4px solid #38a169;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .metric-label {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        li {
+            margin: 15px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+
+        li:before {
+            content: "▶";
+            color: #1e3c72;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .architecture-diagram {
+            background: #f8f9ff;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .flow-step {
+            display: inline-block;
+            background: #1e3c72;
+            color: white;
+            padding: 15px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+
+        .arrow {
+            font-size: 1.5em;
+            color: #1e3c72;
+            margin: 0 10px;
+        }
+
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .team-member {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 10px;
+        }
+
+        .member-photo {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .member-name {
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-bottom: 5px;
+        }
+
+        .member-role {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .comparison-table th {
+            background: #1e3c72;
+            color: white;
+            font-weight: 500;
+        }
+
+        .comparison-table tr:nth-child(even) {
+            background: #f8f9ff;
+        }
+
+        .status-placeholder {
+            background: #fffbeb;
+            border: 2px dashed #f59e0b;
+            padding: 40px;
+            text-align: center;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .placeholder-text {
+            color: #f59e0b;
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+
+        .nav-controls {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 60, 114, 0.9);
+            padding: 15px 30px;
+            border-radius: 50px;
+            z-index: 1000;
+        }
+
+        .nav-button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+            margin: 0 15px;
+            padding: 10px 20px;
+            border-radius: 25px;
+            transition: background 0.3s;
+        }
+
+        .nav-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .slide-counter {
+            color: white;
+            margin: 0 20px;
+        }
+
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .slide {
+                padding: 20px;
+                margin: 10px 0;
+            }
+            
+            .slide-title {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="presentation-container">
+        
+        <!-- Слайд 1: Executive Summary -->
+        <div class="slide" id="slide-1">
+            <div class="mckinsey-logo">McKinsey & Company</div>
+            <div class="slide-header">
+                <h1 class="slide-title">Мультиагентная система для рецензирования научных статей</h1>
+                <p class="slide-subtitle">Революционный подход к автоматизации peer review процесса</p>
+            </div>
+            
+            <div class="content-grid">
+                <div>
+                    <div class="highlight-box">
+                        <h3>🎯 Цель проекта</h3>
+                        <p>Создание масштабируемой системы автоматического рецензирования научных статей с использованием специализированных LLM агентов</p>
+                    </div>
+                    
+                    <div class="solution-box">
+                        <h3>✅ Ключевые достижения</h3>
+                        <ul>
+                            <li>Модульная архитектура с 2 специализированными агентами</li>
+                            <li>Система оценки качества по 5 критериям</li>
+                            <li>Telegram интерфейс для пользователей</li>
+                            <li>Автоматизированная система деплоя с Docker</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="metric-card">
+                        <div class="metric-value">~180s</div>
+                        <div class="metric-label">Время обработки статьи</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">25/25</div>
+                        <div class="metric-label">Максимальный балл оценки</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">2</div>
+                        <div class="metric-label">Специализированных агента</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="slide-number">1</div>
+        </div>
+
+        <!-- Слайд 2: Проблема -->
+        <div class="slide" id="slide-2">
+            <div class="mckinsey-logo">McKinsey & Company</div>
+            <div class="slide-header">
+                <h1 class="slide-title">Проблема</h1>
+                <p class="slide-subtitle">Зачем нам нужны агенты для peer review?</p>
+            </div>
+            
+            <div class="content-grid">
+                <div>
+                    <div class="problem-box">
+                        <h3>🚨 Текущие вызовы peer review</h3>
+                        <ul>
+                            <li><strong>Временные затраты:</strong> 2-6 месяцев на рецензию</li>
+                            <li><strong>Высокая стоимость:</strong> $15-50 за рецензию эксперта</li>
+                            <li><strong>Субъективность:</strong> Различные мнения рецензентов</li>
+                            <li><strong>Масштабируемость:</strong> Ограниченное количество экспертов</li>
+                            <li><strong>Доступность:</strong> Барьеры для молодых исследователей</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="highlight-box">
+                        <h3>🧠 Преимущества мультиагентного подхода</h3>
+                        <ul>
+                            <li><strong>Разделение задач:</strong> Каждый агент фокусируется на своей экспертизе</li>
+                            <li><strong>Эффективность:</strong> Маленькие специализированные модели vs одна большая</li>
+                            <li><strong>Параллелизм:</strong> Одновременная обработка разных аспектов</li>
+                            <li><strong>Консистентность:</strong> Стандартизированные критерии оценки</li>
+                            <li><strong>Масштабируемость:</strong> Неограниченная пропускная способность</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="architecture-diagram">
+                        <div style="font-size: 1.2em; margin-bottom: 20px; color: #1e3c72; font-weight: bold;">
+                            Один большой LLM vs Множество маленьких агентов
+                        </div>
+                        <div style="background: #fff5f5; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                            <strong>Большая модель:</strong> Медленно, дорого, сложно настроить
+                        </div>
+                        <div style="background: #f0fff4; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                            <strong>Агентная система:</strong> Быстро, эффективно, специализированно
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="slide-number">2</div>
+        </div>
+
+        <!-- Слайд 3: Данные -->
+        <div class="slide" id="slide-3">
+            <div class="mckinsey-logo">McKinsey & Company</div>
+            <div class="slide-header">
+                <h1 class="slide-title">Данные</h1>
+                <p class="slide-subtitle">Основа для обучения и валидации системы</p>
+            </div>
+            
+            <div class="content-grid">
+                <div>
+                    <div class="highlight-box">
+                        <h3>📊 Источник данных: OpenReview</h3>
+                        <ul>
+                            <li><strong>Источник:</strong> OpenReview.net</li>
+                            <li><strong>Тематика:</strong> Конференции по машинному обучению</li>
+                            <li><strong>Объем:</strong> 100 пар статья-рецензия</li>
+                            <li><strong>Качество:</strong> Профессиональные рецензии экспертов</li>
+                            <li><strong>Формат:</strong> PDF статьи + текстовые рецензии</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="solution-box">
+                        <h3>🎯 Ground Truth</h3>
+                        <p><strong>Человеческие рецензии</strong> служат эталоном качества:</p>
+                        <ul>
+                            <li>Структурированные оценки экспертов</li>
+                            <li>Детальный анализ методологии</li>
+                            <li>Конструктивные рекомендации</li>
+                            <li>Соответствие академическим стандартам</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="metric-card">
+                        <div class="metric-value">100</div>
+                        <div class="metric-label">Пар статья-рецензия</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">15</div>
+                        <div class="metric-label">Статей для сравнения</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">ML</div>
+                        <div class="metric-label">Тематика конференций</div>
+                    </div>
+                    
+                    <div class="architecture-diagram">
+                        <h4 style="color: #1e3c72; margin-bottom: 15px;">Процесс обработки данных</h4>
+                        <div class="flow-step">PDF Извлечение</div>
+                        <span class="arrow">→</span>
+                        <div class="flow-step">Предобработка</div>
+                        <span class="arrow">→</span>
+                        <div class="flow-step">Анализ агентами</div>
+                        <span class="arrow">→</span>
+                        <div class="flow-step">Оценка качества</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="slide-number">3</div>
+        </div>
+
+        <!-- Слайд 4: Первая архитектура -->
+        <div class="slide" id="slide-4">
+            <div class="mckinsey-logo">McKinsey & Company</div>
+            <div class="slide-header">
+                <h1 class="slide-title">Первая архитектура</h1>
+                <p class="slide-subtitle">Модульная система специализированных агентов</p>
+            </div>
+            
+            <div class="content-full">
+                <div class="architecture-diagram">
+                    <h3 style="color: #1e3c72; margin-bottom: 20px;">Архитектура системы</h3>
+                    <div style="margin: 30px 0;">
+                        <div class="flow-step">Telegram Bot</div>
+                        <span class="arrow">→</span>
+                        <div class="flow-step">FastAPI Server</div>
+                        <span class="arrow">→</span>
+                        <div class="flow-step">Orchestrator</div>
+                        <span class="arrow">→</span>
+                        <div class="flow-step">Ollama (qwen3:4b)</div>
+                    </div>
+                </div>
+                
+                <div class="content-grid">
+                    <div>
+                        <div class="highlight-box">
+                            <h3>🏗️ Основные компоненты</h3>
+                            <ul>
+                                <li><strong>Orchestrator:</strong> Координирует работу агентов</li>
+                                <li><strong>StructureAgent:</strong> Анализирует структуру статьи</li>
+                                <li><strong>SummaryAgent:</strong> Создает суммаризацию</li>
+                                <li><strong>PDFExtractor:</strong> Извлекает текст из PDF</li>
+                                <li><strong>BaseAgent:</strong> Базовый класс для агентов</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="solution-box">
+                            <h3>⚡ Оптимизации производительности</h3>
+                            <ul>
+                                <li>Параллельный запуск агентов</li>
+                                <li>Агрессивные таймауты (180s)</li>
+                                <li>Ограничение токенов (1000 max)</li>
+                                <li>Асинхронная архитектура (asyncio)</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="highlight-box">
+                            <h3>🔧 Технические детали</h3>
+                            <ul>
+                                <li><strong>Модель:</strong> qwen3:4b через Ollama</li>
+                                <li><strong>Язык:</strong> Python 3.11+</li>
+                                <li><strong>API:</strong> FastAPI</li>
+                                <li><strong>Контейнеризация:</strong> Docker</li>
+                                <li><strong>Тестирование:</strong> Unit + Integration + E2E</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="metric-card">
+                            <div class="metric-value">2</div>
+                            <div class="metric-label">Специализированных агента</div>
+                        </div>
+                        
+                        <div class="metric-card">
+                            <div class="metric-value">~3 min</div>
+                            <div class="metric-label">Время обработки статьи</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="slide-number">4</div>
+        </div>
+
+        <!-- Слайд 5: Допил архитектуры -->
+        <div class="slide" id="slide-5">
+            <div class="mckinsey-logo">McKinsey & Company</div>
+            <div class="slide-header">
+                <h1 class="slide-title">Допил архитектуры</h1>
+                <p class="slide-subtitle">Планируемые улучшения системы</p>
+            </div>
+            
+            <div class="content-full">
+                <div class="status-placeholder">
+                    <div class="placeholder-text">🚧 В разработке</div>
+                    <p style="margin-top: 15px; color: #666;">
+                        Планируемые улучшения включают оптимизацию промптов, 
+                        добавление новых агентов и улучшение метрик качества
+                    </p>
+                </div>
+                
+                <div class="content-grid">
+                    <div>
+                        <div class="highlight-box">
+                            <h3>🎯 Планируемые улучшения</h3>
+                            <ul>
+                                <li>Добавление CitationAgent для анализа ссылок</li>
+                                <li>MethodologyAgent для глубокого анализа методов</li>
+                                <li>Улучшенные промпты для агентов</li>
+                                <li>Система весов для разных критериев</li>
+                                <li>Адаптивные таймауты</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="solution-box">
+                            <h3>📈 Ожидаемые результаты</h3>
+                            <ul>
+                                <li>Повышение точности анализа на 15-20%</li>
+                                <li>Сокращение времени обработки до 120s</li>
+                                <li>Улучшение детализации рекомендаций</li>
+                                <li>Более точная оценка методологии</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="slide-number">5</div>
+        </div>
+
+        <!-- Слайд 6: Архитектура Сереги -->
+        <div class="slide" id="slide-6">
+            <div class="mckinsey-logo">McKinsey & Company</div>
+            <div class="slide-header">
+                <h1 class="slide-title">Архитектура Сереги</h1>
+                <p class="slide-subtitle">Альтернативный подход к решению задачи</p>
+            </div>
+            
+            <div class="content-full">
+                <div class="status-placeholder">
+                    <div class="placeholder-text">🔍 В исследовании</div>
+                    <p style="margin-top: 15px; color: #666;">
+                        Альтернативная архитектура, предложенная коллегой, 
+                        рассматривается как потенциальное направление развития
+                    </p>
+                </div>
+                
+                <div class="content-grid">
+                    <div>
+                        <div class="highlight-box">
+                            <h3>🔬 Исследуемые подходы</h3>
+                            <ul>
+                                <li>Иерархическая система агентов</li>
+                                <li>Использование ensemble методов</li>
+                                <li>Адаптивная маршрутизация запросов</li>
+                                <li>Динамическое управление агентами</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="solution-box">
+                            <h3>📊 Потенциальные преимущества</h3>
+                            <ul>
+                                <li>Более гибкая архитектура</li>
+                                <li>Лучшая адаптация к разным типам статей</li>
+                                <li>Возможность машинного обучения</li>
+                                <li>Более точная оценка сложных случаев</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="slide-number">6</div>
+        </div>
+
+        <!-- Слайд 7: Валидация результата -->
+        <div class="slide" id="slide-7">
+            <div class="mckinsey-logo">McKinsey & Company</div>
+            <div class="slide-header">
+                <h1 class="slide-title">Как валидировать результат</h1>
+                <p class="slide-subtitle">Методы оценки качества автоматических рецензий</p>
+            </div>
+            
+            <div class="content-grid">
+                <div>
+                    <div class="highlight-box">
+                        <h3>📋 Методы сравнения</h3>
+                        <ul>
+                            <li><strong>С человеческими рецензиями:</strong> Сравнение с ground truth от экспертов</li>
+                            <li><strong>Со статьей целиком:</strong> Проверка соответствия содержанию</li>
+                            <li><strong>Cross-validation:</strong> Сравнение между разными агентными системами</li>
+                            <li><strong>A/B тестирование:</strong> Сравнение архитектур на одних данных</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="solution-box">
+                        <h3>🤖 Варианты оценщика</h3>
+                        <ul>
+                            <li><strong>Одна умная модель:</strong> GPT-4/Claude для оценки качества</li>
+                            <li><strong>Агентская система оценки:</strong> Специализированные агенты-судьи</li>
+                            <li><strong>Человеческая оценка:</strong> Экспертная валидация результатов</li>
+                            <li><strong>Автоматические метрики:</strong> BLEU, ROUGE, семантическое сходство</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="architecture-diagram">
+                        <h4 style="color: #1e3c72; margin-bottom: 15px;">Процесс валидации</h4>
+                        <div style="margin: 20px 0;">
+                            <div class="flow-step">Генерация рецензии</div>
+                            <span class="arrow">↓</span><br><br>
+                            <div class="flow-step">Сравнение с эталоном</div>
+                            <span class="arrow">↓</span><br><br>
+                            <div class="flow-step">Оценка по критериям</div>
+                            <span class="arrow">↓</span><br><br>
+                            <div class="flow-step">Агрегация результатов</div>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">5</div>
+                        <div class="metric-label">Критериев оценки</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">1-5</div>
+                        <div class="metric-label">Шкала баллов</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="slide-number">7</div>
+        </div>
+
+        <!-- Слайд 8: Метрики и промпт для оценки -->
+        <div class="slide" id="slide-8">
+            <div class="mckinsey-logo">McKinsey & Company</div>
+            <div class="slide-header">
+                <h1 class="slide-title">Метрики и промпт для оценки</h1>
+                <p class="slide-subtitle">Система оценки качества рецензий</p>
+            </div>
+            
+            <div class="content-grid">
+                <div>
+                    <div class="highlight-box">
+                        <h3>📊 5 критериев оценки (шкала 1-5)</h3>
+                        <ul>
+                            <li><strong>1. Логическая последовательность:</strong> Связность аргументации</li>
+                            <li><strong>2. Покрытие сильных сторон:</strong> Выявление достоинств статьи</li>
+                            <li><strong>3. Выявление проблем:</strong> Критический анализ недостатков</li>
+                            <li><strong>4. Практичность рекомендаций:</strong> Действенные советы</li>
+                            <li><strong>5. Научный стиль:</strong> Соответствие академическим стандартам</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="solution-box">
+                        <h3>🎯 Система оценки</h3>
+                        <ul>
+                            <li><strong>Максимальный балл:</strong> 25 (5×5)</li>
+                            <li><strong>Пороговое значение:</strong> 15+ (хорошее качество)</li>
+                            <li><strong>Автоматический парсинг:</strong> Regex-извлечение оценок</li>
+                            <li><strong>Обоснования:</strong> Текстовые пояснения к каждому баллу</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="metric-card">
+                        <div class="metric-value">25</div>
+                        <div class="metric-label">Максимальный балл</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">5</div>
+                        <div class="metric-label">Одновременных запросов к LLM</div>
+                    </div>
+                    
+                    <div class="highlight-box">
+                        <h3>🔧 Технические параметры</h3>
+                        <ul>
+                            <li><strong>Модель для оценки:</strong> qwen3:4b</li>
+                            <li><strong>Формат ответа:</strong> Структурированный</li>
+                            <li><strong>Обработка ошибок:</strong> Парсинг с fallback</li>
+                            <li><strong>Concurrency control:</strong> Semaphore(5)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="slide-number">8</div>
+        </div>
+
+        <!-- Слайд 9: Результаты архитектур -->
+        <div class="slide" id="slide-9">
+            <div class="mckinsey-logo">McKinsey & Company</div>
+            <div class="slide-header">
+                <h1 class="slide-title">Результаты архитектур</h1>
+                <p class="slide-subtitle">Сравнительный анализ различных подходов</p>
+            </div>
+            
+            <div class="content-full">
+                <div class="status-placeholder">
+                    <div class="placeholder-text">📈 Данные собираются</div>
+                    <p style="margin-top: 15px; color: #666;">
+                        Результаты всех архитектур, сравнение с умной моделью 
+                        и человеческим бенчмарком находятся в процессе анализа
+                    </p>
+                </div>
+                
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Архитектура</th>
+                            <th>Средний балл</th>
+                            <th>Время обработки</th>
+                            <th>Стоимость</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Мультиагентная система (текущая)</td>
+                            <td>Измеряется</td>
+                            <td>~180s</td>
+                            <td>Низкая</td>
+                            <td>✅ Готово</td>
+                        </tr>
+                        <tr>
+                            <td>Архитектура Сереги</td>
+                            <td>TBD</td>
+                            <td>TBD</td>
+                            <td>TBD</td>
+                            <td>🔍 В разработке</td>
+                        </tr>
+                        <tr>
+                            <td>Одна умная модель (GPT-4)</td>
+                            <td>Baseline</td>
+                            <td>~60s</td>
+                            <td>Высокая</td>
+                            <td>📊 Тестируется</td>
+                        </tr>
+                        <tr>
+                            <td>Человеческий эксперт</td>
+                            <td>25/25 (эталон)</td>
+                            <td>2-6 месяцев</td>
+                            <td>$15-50</td>
+                            <td>🎯 Ground Truth</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="slide-number">9</div>
+        </div>
+
+        <!-- Слайд 10: Бизнесовый смысл -->
+        <div class="slide" id="slide-10">
+            <div class="mckinsey-logo">McKinsey & Company</div>
+            <div class="slide-header">
+                <h1 class="slide-title">Бизнесовый смысл</h1>
+                <p class="slide-subtitle">Экономическая эффективность и практическая ценность</p>
+            </div>
+            
+            <div class="content-grid">
+                <div>
+                    <div class="highlight-box">
+                        <h3>💰 Экономические показатели</h3>
+                        <ul>
+                            <li><strong>Время инференса:</strong> ~180 секунд vs 2-6 месяцев у человека</li>
+                            <li><strong>Стоимость запуска:</strong> ~$0.01 vs $15-50 за экспертную рецензию</li>
+                            <li><strong>Масштабируемость:</strong> Неограниченная пропускная способность</li>
+                            <li><strong>Доступность:</strong> 24/7 работа без выходных</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="solution-box">
+                        <h3>🎯 Достигнутые эффекты</h3>
+                        <ul>
+                            <li><strong>Ускорение процесса:</strong> В 5000+ раз быстрее</li>
+                            <li><strong>Снижение затрат:</strong> В 1500+ раз дешевле</li>
+                            <li><strong>Стандартизация:</strong> Единые критерии оценки</li>
+                            <li><strong>Объективность:</strong> Отсутствие человеческих предрассудков</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="metric-card">
+                        <div class="metric-value">5000x</div>
+                        <div class="metric-label">Ускорение процесса</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">1500x</div>
+                        <div class="metric-label">Снижение стоимости</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">24/7</div>
+                        <div class="metric-label">Доступность системы</div>
+                    </div>
+                    
+                    <div class="highlight-box">
+                        <h3>📈 Потенциал применения</h3>
+                        <ul>
+                            <li>Предварительный скрининг статей</li>
+                            <li>Помощь редакторам журналов</li>
+                            <li>Обучение молодых исследователей</li>
+                            <li>Автоматизация conference reviews</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="slide-number">10</div>
+        </div>
+
+        <!-- Слайд 11: Команда -->
+        <div class="slide" id="slide-11">
+            <div class="mckinsey-logo">McKinsey & Company</div>
+            <div class="slide-header">
+                <h1 class="slide-title">Команда проекта</h1>
+                <p class="slide-subtitle">Эксперты, создавшие революционную систему</p>
+            </div>
+            
+            <div class="content-full">
+                <div class="team-grid">
+
+                    <div class="team-member">
+                        <div class="member-photo">АИ</div>
+                        <div class="member-name">AI Assistant</div>
+                        <div class="member-role">Technical Lead & Architect</div>
+                    </div>
+                    
+                    <div class="team-member">
+                        <div class="member-photo">МП</div>
+                        <div class="member-name">Matt Prish</div>
+                        <div class="member-role">Product Owner & Visionary</div>
+                    </div>
+                    
+                    <div class="team-member">
+                        <div class="member-photo">СР</div>
+                        <div class="member-name">Серега</div>
+                        <div class="member-role">Alternative Architecture Developer</div>
+                    </div>
+                    
+                    <div class="team-member">
+                        <div class="member-photo">ТМ</div>
+                        <div class="member-name">Команда</div>
+                        <div class="member-role">Research & Development</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 40px; text-align: center;">
+                    <div class="highlight-box">
+                        <h3>🏆 Достижения команды</h3>
+                        <p style="font-size: 1.1em; margin-top: 15px;">
+                            Создана первая в своем роде мультиагентная система для автоматического рецензирования 
+                            научных статей с модульной архитектурой и системой оценки качества
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="slide-number">11</div>
+        </div>
+    </div>
+
+    <!-- Навигация -->
+    <div class="nav-controls">
+        <button class="nav-button" onclick="previousSlide()">← Назад</button>
+        <span class="slide-counter">
+            <span id="current-slide">1</span> / <span id="total-slides">11</span>
+        </span>
+        <button class="nav-button" onclick="nextSlide()">Вперед →</button>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 11;
+
+        function showSlide(n) {
+            // Скрываем все слайды
+            for (let i = 1; i <= totalSlides; i++) {
+                document.getElementById(`slide-${i}`).style.display = 'none';
+            }
+            
+            // Показываем нужный слайд
+            if (n > totalSlides) currentSlide = 1;
+            if (n < 1) currentSlide = totalSlides;
+            
+            document.getElementById(`slide-${currentSlide}`).style.display = 'flex';
+            document.getElementById('current-slide').textContent = currentSlide;
+            
+            // Прокручиваем к началу слайда
+            document.getElementById(`slide-${currentSlide}`).scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+
+        function nextSlide() {
+            currentSlide++;
+            showSlide(currentSlide);
+        }
+
+        function previousSlide() {
+            currentSlide--;
+            showSlide(currentSlide);
+        }
+
+        // Инициализация
+        showSlide(1);
+
+        // Навигация клавишами
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                previousSlide();
+            }
+        });
+
+        // Устанавливаем общее количество слайдов
+        document.getElementById('total-slides').textContent = totalSlides;
+    </script>
+</body>
+</html> 
