@@ -1,13 +1,15 @@
 import asyncio
 from src.core.orchestrator import Orchestrator, IterativeOrchestrator
 from src.core.base_agent import BaseAgent
+from src.core.prompts import agents_prompts
+import argparse
+from src.core.pdf.pdf import pdf_url_to_text
 
 model_url = "https://.../v1"  # url to model
 
 
-# def main():
 async def main():
-    agents_prompts = {
+    agents_prompts_old = {
         "AbstractAgent": """
             Analyze the abstract and introduction of the provided scientific paper. Assess the clarity of the research question, the novelty of the work, and the significance of the stated contributions. Provide a score from 0 to 10 for each of these three aspects (Clarity, Novelty, Significance), where 0 is poor, 4-7 is average, and 8-10 is excellent. Summarize your findings in a short paragraph.
         """,
@@ -22,7 +24,7 @@ async def main():
         """,
         "CitationAgent": """
             Verify the formatting and consistency of the citations and reference list. Check for any obvious errors in the references, such as missing information or incorrect formatting. Assess whether the references are relevant and up-to-date. Provide a score from 0 to 10 for the quality of citations and referencing, where 0 is poor, 4-7 is average, and 8-10 is excellent.
-        """
+        """,
     }
     # parser = argparse.ArgumentParser(description="Link to the paper")
     # parser.add_argument("url", help="Input URL")
@@ -43,22 +45,22 @@ async def main():
     model_name = "qwen/qwen3-4b"
     agents = [
         BaseAgent("AbstractAgent", model_url, model_name, agents_prompts["AbstractAgent"]),
-        # BaseAgent("MethodologyAgent", model_url, model_name, agents_prompts["MethodologyAgent"]),
-        # BaseAgent("ResultsAgent", model_url, model_name, agents_prompts["ResultsAgent"]),
-        # BaseAgent("LanguageAgent", model_url, model_name, agents_prompts["LanguageAgent"]),
-        # BaseAgent("CitationAgent", model_url, model_name, agents_prompts["CitationAgent"]),
+        # BaseAgent("SummaryAgent", model_url, model_name, agents_prompts["SummaryAgent"]),
+        # BaseAgent("StrengthAgent", model_url, model_name, agents_prompts["StrengthAgent"]),
+        # BaseAgent("WeaknessesAgent", model_url, model_name, agents_prompts["WeaknessesAgent"]),
+        # BaseAgent("QuestionAgent", model_url, model_name, agents_prompts["QuestionAgent"]),
     ]
-    orchestrator = Orchestrator(
-        model_url,
-        model_name,
-        agents,
-    )
-
-    # orchestrator = IterativeOrchestrator(
+    # orchestrator = Orchestrator(
     #     model_url,
     #     model_name,
     #     agents,
     # )
+
+    orchestrator = IterativeOrchestrator(
+        model_url,
+        model_name,
+        agents,
+    )
     result = await orchestrator.run(paper)
     print(result)
 
