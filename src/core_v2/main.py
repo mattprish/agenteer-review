@@ -1,9 +1,11 @@
 from agentlib.orchestrator import Orchestrator
 from agentlib.base_agent import BaseAgent
 import argparse
-from pdf.pdf import pdf_url_to_text
+import asyncio
+import json
+# from utils.pdf.pdf import pdf_url_to_text
 
-def main():
+async def main():
     agents_prompts = {
         "AbstractAgent": """
             Analyze the abstract and introduction of the provided scientific paper. Assess the clarity of the research question, the novelty of the work, and the significance of the stated contributions. Provide a score from 0 to 10 for each of these three aspects (Clarity, Novelty, Significance), where 0 is poor, 4-7 is average, and 8-10 is excellent. Summarize your findings in a short paragraph.
@@ -21,27 +23,30 @@ def main():
             Verify the formatting and consistency of the citations and reference list. Check for any obvious errors in the references, such as missing information or incorrect formatting. Assess whether the references are relevant and up-to-date. Provide a score from 0 to 10 for the quality of citations and referencing, where 0 is poor, 4-7 is average, and 8-10 is excellent.
         """
     }
-    parser = argparse.ArgumentParser(description = "Link to the paper")
-    parser.add_argument("url",help = "Input URL")
-    args = parser.parse_args()
-    url =  args.url.replace("forum", "pdf")
-    paper = pdf_url_to_text(url)
-    model_url = "https://8d586b648815.ngrok-free.app/v1"
-    model_name = "qwen/qwen3-4b"
+    # parser = argparse.ArgumentParser(description = "Link to the paper")
+    # parser.add_argument("url",help = "Input URL")
+    # args = parser.parse_args()
+    # url =  args.url.replace("forum", "pdf")
+    with open('dataset_100.json', 'r', encoding='utf-8') as f:
+        papers = json.load(f)
+
+    paper = papers[0]['pdf_text']
+    model_url = "http://84.201.137.113:8000"
+    model_name = "Qwen/Qwen3-4B"
     agents = [
         BaseAgent("AbstractAgent",model_url,model_name,agents_prompts["AbstractAgent"]),
-        BaseAgent("MethodologyAgent",model_url,model_name,agents_prompts["MethodologyAgent"]),
-        BaseAgent("ResultsAgent",model_url,model_name,agents_prompts["ResultsAgent"]),
-        BaseAgent("LanguageAgent",model_url,model_name,agents_prompts["LanguageAgent"]),
-        BaseAgent("CitationAgent",model_url,model_name,agents_prompts["CitationAgent"]),
+        # BaseAgent("MethodologyAgent",model_url,model_name,agents_prompts["MethodologyAgent"]),
+        # BaseAgent("ResultsAgent",model_url,model_name,agents_prompts["ResultsAgent"]),
+        # BaseAgent("LanguageAgent",model_url,model_name,agents_prompts["LanguageAgent"]),
+        # BaseAgent("CitationAgent",model_url,model_name,agents_prompts["CitationAgent"]),
     ]
     orchestrator = Orchestrator(
         model_url,
         model_name,
         agents
     )
-    result = orchestrator.run(paper)
+    result = await orchestrator.run(paper)
     print(result)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

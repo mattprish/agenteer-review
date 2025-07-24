@@ -1,11 +1,11 @@
 import asyncio
-from src.core.orchestrator import Orchestrator
-from src.core.base_agent import BaseAgent
+from orchestrator import Orchestrator
+from base_agent import BaseAgent
 import argparse
-from pdf.pdf import pdf_url_to_text
+# from src.utils.pdf.pdf import pdf_url_to_text
 
-model_url = "https://.../v1"  # url to model
-model_url = "https://ee5c10d10d35.ngrok-free.app"  # url to model
+
+model_url = "http://84.201.137.113:8000"
 
 
 # def main():
@@ -32,18 +32,12 @@ async def main():
     # args = parser.parse_args()
     # url = args.url.replace("forum", "pdf")
     # paper = pdf_url_to_text(url)
-    paper = """
-    COUNTEREXAMPLE TO EULER'S CONJECTURE ON SUMS OF LIKE POWERS BY L. J. LANDER AND T. R. PARKIN
-    Communicated by J. D. Swift, June 27, 1966
-    A direct search on the CDC 6600 yielded
-    275 + 845+1105 +1335 = 1445
-    as the smallest instance in which four fifth powers sum to a fifth power. This is a counterexample to a conjecture by Euler [1] that at least n nth powers are required to sum to an nth power, n > 2.
-    REFERENCE
-    1. L. E. Dickson, History of the theory of numbers, Vol. 2, Chelsea, New York,
-    1952, p. 648.
-    """
+    import json
 
-    model_name = "qwen/qwen3-4b"
+    with open('dataset_100.json', 'r', encoding='utf-8') as f:
+        papers = json.load(f)
+
+    model_name = "Qwen/Qwen3-4B"
     agents = [
         BaseAgent("AbstractAgent", model_url, model_name, agents_prompts["AbstractAgent"]),
         BaseAgent("MethodologyAgent", model_url, model_name, agents_prompts["MethodologyAgent"]),
@@ -56,10 +50,25 @@ async def main():
         model_name,
         agents,
     )
-    result = await orchestrator.run(paper)
-    # result = orchestrator.run(paper)
-    print(result)
-
+    res = []
+    for (i, paper) in enumerate(papers[:20]):
+        title = paper['title']
+        try:
+            result = await orchestrator.run(paper['pdf_text'])
+            res.append(
+                {
+                    "article_index": i,
+                    "paper_title": title,
+                    "generated_review": result
+                }
+            )
+        except:
+            print(f"i broken: {i}")
+        break
+    
+    print(res[0]['generated_review']['answer'])
+    # with open('core_v2_review.json', 'w', encoding='utf-8') as f:
+    #     json.dump(res, f, ensure_ascii=False, indent=2)
 
 if __name__ == "__main__":
     # main()
