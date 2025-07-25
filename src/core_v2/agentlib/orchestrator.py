@@ -1,7 +1,7 @@
 import asyncio
 import aiohttp
 import re
-from prompts import orchestrator_prompts
+from core_v2.agentlib.prompts import orchestrator_prompts
 
 
 def remove_think_blocks(text: str) -> str:
@@ -74,4 +74,9 @@ class Orchestrator:
                     headers={"Content-Type": "application/json"}
             ) as response:
                 data = await response.json()
-                return {"answer": remove_think_blocks(data['choices'][0]['message']['content'])}
+                
+                return {
+                    "agent_results": None,
+                    "final_review": remove_think_blocks(data['choices'][0]['message']['content']),
+                    "processing_status": "success"
+                }

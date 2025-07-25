@@ -36,7 +36,7 @@ class ProcessingState(StatesGroup):
 class LLMServiceClient:
     """Клиент для работы с FastAPI сервером"""
     
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    def __init__(self, base_url: str = "http://localhost:5000"):
         self.base_url = base_url
     
     async def health_check(self) -> bool:

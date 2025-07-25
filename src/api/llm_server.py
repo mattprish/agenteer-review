@@ -22,11 +22,21 @@ USE_OLLAMA = False  # True — использовать Ollama, False — кас
 
 # Пример ваших промптов для агентов
 agents_prompts = {
-    "AbstractAgent": "find abdstract",
-    "MethodologyAgent": "print methodology",
-    "ResultsAgent": "PROMPT 3",
-    "LanguageAgent": "PROMPT 4",
-    "CitationAgent": "PROMPT 5",
+    "AbstractAgent": """
+        Analyze the abstract and introduction of the provided scientific paper. Assess the clarity of the research question, the novelty of the work, and the significance of the stated contributions. Provide a score from 0 to 10 for each of these three aspects (Clarity, Novelty, Significance), where 0 is poor, 4-7 is average, and 8-10 is excellent. Summarize your findings in a short paragraph.
+    """,
+    "MethodologyAgent": """
+        Examine the methodology section of the paper. Evaluate the clarity and completeness of the described methods. Assess whether the experimental setup is sound and if the work appears to be reproducible based on the information provided. Provide a score from 0 to 10 for both Clarity of Methods and Reproducibility, where 0 is poor, 4-7 is average, and 8-10 is excellent. List any identified flaws or areas needing further clarification.
+    """,
+    "ResultsAgent": """
+        Analyze the results and discussion sections. Assess whether the presented results are clearly explained and logically support the paper's main claims. Evaluate the quality of the discussion in interpreting the results and contextualizing them within the broader field. Provide a score from 0 to 10 for both Clarity of Results and Quality of Discussion, where 0 is poor, 4-7 is average, and 8-10 is excellent. Highlight any inconsistencies or unsupported claims.
+    """,
+    "LanguageAgent": """
+        Perform a thorough check of the entire paper for grammatical errors, spelling mistakes, and awkward phrasing. Identify sentences or paragraphs that are unclear due to poor language. Provide a score from 0 to 10 for the overall linguistic quality of the paper, where 0 is poor, 4-7 is average, and 8-10 is excellent. List the most significant grammatical issues found.
+    """,
+    "CitationAgent": """
+        Verify the formatting and consistency of the citations and reference list. Check for any obvious errors in the references, such as missing information or incorrect formatting. Assess whether the references are relevant and up-to-date. Provide a score from 0 to 10 for the quality of citations and referencing, where 0 is poor, 4-7 is average, and 8-10 is excellent.
+    """
 }
 
 app = FastAPI()
@@ -79,17 +89,17 @@ async def ollama_start():
         logger.error(f"Error registering agents: {e}")
 
 async def new_start():
-    model_url = "https://70941f5dfbfb.ngrok-free.app"
-    model_name = "qwen/qwen3-4b"
+    model_url = "http://84.201.137.113:8000"
+    model_name = "Qwen/Qwen3-4B"
     logger.info(f"Using CUSTOM url: {model_url} (model: {model_name})")
 
     # Инициализация агентов и оркестратора
     agents = [
         BaseAgent_v2("AbstractAgent", model_url, model_name, agents_prompts["AbstractAgent"]),
-        # BaseAgent_v2("MethodologyAgent", model_url, model_name, agents_prompts["MethodologyAgent"])
-        # BaseAgent_v2("ResultsAgent", model_url, model_name, agents_prompts["ResultsAgent"]),
-        # BaseAgent_v2("LanguageAgent", model_url, model_name, agents_prompts["LanguageAgent"]),
-        # BaseAgent_v2("CitationAgent", model_url, model_name, agents_prompts["CitationAgent"]),
+        BaseAgent_v2("MethodologyAgent", model_url, model_name, agents_prompts["MethodologyAgent"]),
+        BaseAgent_v2("ResultsAgent", model_url, model_name, agents_prompts["ResultsAgent"]),
+        BaseAgent_v2("LanguageAgent", model_url, model_name, agents_prompts["LanguageAgent"]),
+        BaseAgent_v2("CitationAgent", model_url, model_name, agents_prompts["CitationAgent"])
     ]
     ReviewResponce = ReviewResponseNew
     orchestrator = Orchestrator_v2(model_url, model_name, agents)
