@@ -1,226 +1,347 @@
-import openai
-import re
+import asyncio
+import logging
 import json
+import os
+from typing import Dict, Any, List
+import ollama
+from .agents.base_agent import BaseAgent
 
+logger = logging.getLogger(__name__)
 
-def remove_think_blocks(text: str) -> str:
-    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-    return cleaned.strip()
-
+TIMER_FOR_LLM_CALL = 120.0
+NUM_PREDICT_FOR_LLM_CALL = 1000
 
 class Orchestrator:
-    def __init__(self, model_url, model_name, agents):
+    """Оркестратор для управления процессом рецензирования"""
+    
+    def __init__(self, model_name: str = "qwen3:4b"):
         self.model_name = model_name
-        self.url = model_url
-        self.agents = agents
-        self.agents_responses = {}
-        self.prompt = """
-            You will receive a series of evaluations for a scientific paper from different specialized agents. Each evaluation will include scores from 0 to 10 and a summary of findings. Your task is to:
-            Synthesize all the individual scores into a single, overall grade for the paper out of 10. Calculate this by averaging the scores from all agents.
-            Combine the summaries from each agent into a comprehensive and well-structured final review. The review should have separate sections for each aspect of the paper (Abstract & Introduction, Methodology, etc.).
-            Begin the final review with a brief, high-level summary of the paper's strengths and weaknesses.
-            Conclude with a clear recommendation based on the overall score:
-            9-10: Accept
-            7-8: Minor Revisions
-            4-6: Major Revisions
-            0-3: Reject
-        """
-
-    def run_agents(self, paper):
-        for agent in self.agents:
-            self.agents_responses[agent.name] = agent.run(paper)
-            print(f"Agent {agent.name} response is completed")
-
-    def run(self, paper, include_paper=False):
-        openai.api_key = "OPENAI_API_KEY"
-        openai.api_base = self.url
-
-        self.run_agents(paper)
-        prompt = ""
-        if include_paper:
-            prompt += f"\n\nPaper:\n{paper}"
-        for agent in self.agents:
-            prompt += f"\n\n{agent.name} Response:\n{self.agents_responses[agent.name]}"
-        response = openai.ChatCompletion.create(
-            model=self.model_name,
-            messages=[
-                {"role": "system", "content": self.prompt},
-                {"role": "user", "content": prompt},
-            ],
-        )
-        return remove_think_blocks(response.choices[0].message["content"])
-
-
-class OrchestratorAlpha:
-    def __init__(self, model_url, model_name, agents):
-        self.model_name = model_name
-        self.url = model_url
-        self.agents = agents
-        self.agents_responses = {}
-
-        # prompt that can be used, need test
-        self.prompt_alpha = """
-        Based on the outputs of the thematic agents (Novelty, Methodology, Clarity, Reproducibility), write a complete peer review of the paper using the following structure:
-        1.	Summary: Briefly describe the paper’s goal, main method, and key results.
-        2.	Strengths: List the strong aspects of the paper, aggregating the relevant points from all agents.
-        3.	Weaknesses: Identify the major weaknesses mentioned by the agents.
-        4.	Suggestions for Improvement: Provide actionable suggestions on how the paper can be improved, based on the identified weaknesses.
-        5.	Questions to Authors: Include all clarification questions raised by the agents that should be addressed by the authors.
-        6.	Overall Rating (1 to 5): Propose a final rating for the paper by averaging the agent scores and briefly justify the score.
-        7.	Confidence (1 to 5): Indicate the reviewer’s confidence in their understanding of the paper. If there are any unclear sections or missing information, reflect that here.
-        """
-
-        self.prompt = """
-            You will receive a series of evaluations for a scientific paper from different specialized agents. Each evaluation will include scores from 0 to 10 and a summary of findings. Your task is to:
-            Synthesize all the individual scores into a single, overall grade for the paper out of 10. Calculate this by averaging the scores from all agents.
-            Combine the summaries from each agent into a comprehensive and well-structured final review. The review should have separate sections for each aspect of the paper (Abstract & Introduction, Methodology, etc.).
-            Begin the final review with a brief, high-level summary of the paper's strengths and weaknesses.
-            Conclude with a clear recommendation based on the overall score:
-            9-10: Accept
-            7-8: Minor Revisions
-            4-6: Major Revisions
-            0-3: Reject
-        """
-
-    def run_agents(self, paper):
-        for agent in self.agents:
-            self.agents_responses[agent.name] = agent.run(paper)
-            print(f"Agent {agent.name} response is completed")
-
-    def run(self, paper, include_paper=False):
-        openai.api_key = "OPENAI_API_KEY"
-        openai.api_base = self.url
-
-        self.run_agents(paper)
-        prompt = ""
-        if include_paper:
-            prompt += f"\n\nPaper:\n{paper}"
-        for agent in self.agents:
-            prompt += f"\n\n{agent.name} Response:\n{self.agents_responses[agent.name]}"
-        response = openai.ChatCompletion.create(
-            model=self.model_name,
-            messages=[
-                {"role": "system", "content": self.prompt},
-                {"role": "user", "content": prompt},
-            ],
-        )
-        return remove_think_blocks(response.choices[0].message["content"])
-
-
-class IterativeOrchestrator: # new orchestrator, not testes
-    def __init__(self, model_url, model_name, agents, max_iterations=2):
-        self.model_name = model_name
-        self.url = model_url
-        self.agents = agents
-        self.agents_responses = {}
-        self.max_iterations = max_iterations
-
-        self.review_prompt = """
-        You will receive evaluation responses from several reviewing agents who assessed different aspects of a scientific paper.
-
-        Your task:
-        - Identify any contradictions, inconsistencies, or conflicting evaluations across the agents' responses.
-        - Suggest clarifying instructions to the agents who need to revise or refine their feedback.
-        - Return a **JSON array**, where each item is an object with keys "agent" and "message".
+        self.agents: Dict[str, BaseAgent] = {}
         
-        If no clarification is needed, return an empty list: `[]`
+        # Определяем хост для ollama в зависимости от окружения
+        if os.path.exists('/.dockerenv') or os.getenv('DOCKER_ENV'):
+            ollama_host = "http://ollama:11434"
+        else:
+            ollama_host = "http://localhost:11434"
+            
+        self.client = ollama.AsyncClient(host=ollama_host)
+        logger.info(f"Orchestrator initialized with model: {model_name}, ollama host: {ollama_host}")
         
-        Example:
-        [
-        {"agent": "AbstractAgent", "message": "The clarity score contradicts the MethodologyAgent's comments."},
-        {"agent": "ResultsAgent", "message": "Unsupported claims detected—please clarify with evidence."}
-        ]
-        """
-
-        # prompt that can be used, need test
-        self.final_synth_prompt_alpha = """
-            Based on the outputs of the thematic agents (Novelty, Methodology, Clarity, Reproducibility), write a complete peer review of the paper using the following structure:
-            1.	Summary: Briefly describe the paper’s goal, main method, and key results.
-            2.	Strengths: List the strong aspects of the paper, aggregating the relevant points from all agents.
-            3.	Weaknesses: Identify the major weaknesses mentioned by the agents.
-            4.	Suggestions for Improvement: Provide actionable suggestions on how the paper can be improved, based on the identified weaknesses.
-            5.	Questions to Authors: Include all clarification questions raised by the agents that should be addressed by the authors.
-            6.	Overall Rating (1 to 5): Propose a final rating for the paper by averaging the agent scores and briefly justify the score.
-            7.	Confidence (1 to 5): Indicate the reviewer’s confidence in their understanding of the paper. If there are any unclear sections or missing information, reflect that here.
-        """
-
-        self.final_synth_prompt = """
-        You are the final reviewer.
-        You will receive the final responses from five specialized reviewing agents for a scientific paper.
+        # Оптимизированный системный промпт для финальной рецензии на русском
+        self.system_prompt = """
+        You are an academic paper review coordinator. Create a comprehensive review in English for Telegram bot users.
         
-        Your tasks:
-        1. Average all numerical scores to assign an overall grade from 0 to 10.
-        2. Write a structured review with the following sections:
-           - High-Level Summary
-           - Abstract & Introduction
-           - Methodology
-           - Results & Discussion
-           - Language
-           - Citations
-        3. Provide clear, concise explanations in each section using agent responses.
-        4. Conclude with a final recommendation based on the average score:
-           - 9–10: Accept
-           - 7–8: Minor Revisions
-           - 4–6: Major Revisions
-           - 0–3: Reject
+        Structure your review as:
+        1. Overall assessment (1-2 sentences)
+        2. Strengths (2-3 bullet points)  
+        3. Weaknesses (2-3 bullet points)
+        4. Recommendations (2-3 actionable items)
+        
+        Write the entire review. Be constructive and professional.
         """
+    
+    def register_agent(self, name: str, agent: BaseAgent):
+        """Регистрирует агента в системе"""
+        self.agents[name] = agent
+        logger.info(f"Registered agent: {name}")
+    
+    async def run(self, text: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Основной метод обработки статьи с максимальной оптимизацией"""
+        logger.info("Starting optimized paper processing")
+        
+        try:
+            # Проверяем входные данные
+            if not text or not text.strip():
+                raise ValueError("Текст статьи не может быть пустым")
+            
+            logger.info(f"Processing text of length: {len(text)} chars")
+            
+            # Оптимизация: передаем пустые метаданные всем агентам (не используются)
+            empty_metadata = {}
+            
+            # 1. Запуск всех агентов параллельно с агрессивными таймаутами
+            agent_results = await self._run_agents_parallel(text, empty_metadata)
+            logger.info(f"Agent analysis completed")
+            
+            # 2. Быстрая генерация финального отчета на русском
+            final_review = await self._generate_final_review(agent_results)
+            logger.info(f"Final review generated")
+            
+            # 3. Минимальный результат
+            result = {
+                "agent_results": agent_results,
+                "final_review": final_review,
+                "processing_status": "success"
+            }
+            
+            # Включаем метаданные только если переданы
+            if metadata:
+                result["metadata"] = metadata
+            
+            logger.info("Paper processing completed successfully")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in paper processing: {e}", exc_info=True)
+            return {
+                "agent_results": {},
+                "final_review": f"Ошибка при обработке статьи: {str(e)}",
+                "processing_status": "error",
+                "error": str(e)
+            }
+    
+    async def _run_agents_parallel(self, text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Запускает всех агентов параллельно с агрессивными таймаутами"""
+        logger.info(f"Running {len(self.agents)} agents in parallel")
+        
+        if not self.agents:
+            logger.warning("No agents registered")
+            return {}
+        
+        # Создаем задачи для всех агентов одновременно
+        tasks = []
+        agent_names = []
+        
+        for name, agent in self.agents.items():
+            task = asyncio.create_task(
+                self._run_single_agent(agent, text, metadata, name)
+            )
+            tasks.append(task)
+            agent_names.append(name)
+        
+        # Агрессивные таймауты для максимальной скорости
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=TIMER_FOR_LLM_CALL*3
+            )
+        except asyncio.TimeoutError:
+            logger.error("Agent processing timeout")
+            return {"error": "Превышено время ожидания анализа"}
+        
+        # Собираем результаты
+        agent_results = {}
+        for i, (name, result) in enumerate(zip(agent_names, results)):
+            if isinstance(result, Exception):
+                logger.error(f"Agent {name} failed: {result}")
+                agent_results[name] = {
+                    "error": str(result),
+                    "status": "failed"
+                }
+            else:
+                # Агенты теперь возвращают сырой текст
+                agent_results[name] = {
+                    "result": result,
+                    "status": "success"
+                }
+        
+        logger.info(f"Completed {len(agent_results)} agent tasks")
+        return agent_results
+    
+    async def _run_single_agent(self, agent: BaseAgent, text: str, metadata: Dict[str, Any], agent_name: str) -> str:
+        """Запускает отдельного агента с агрессивным таймаутом"""
+        try:
+            logger.info(f"Starting agent: {agent_name}")
+            
+            # Агрессивный таймаут для каждого агента
+            result = await asyncio.wait_for(
+                agent.analyze(text, metadata),
+                timeout=TIMER_FOR_LLM_CALL
+            )
+            
+            # Проверяем, не вернул ли агент ошибку
+            if isinstance(result, str) and result.startswith("ERROR:"):
+                logger.warning(f"Agent {agent_name} returned error: {result}")
+                raise Exception(f"Agent error: {result}")
+            
+            logger.info(f"Agent {agent_name} completed successfully")
+            return result
+            
+        except asyncio.TimeoutError:
+            logger.error(f"Agent {agent_name} timeout")
+            raise Exception(f"Агент {agent_name} превысил время ожидания")
+        except Exception as e:
+            logger.error(f"Agent {agent_name} failed: {e}")
+            raise e
+    
+    async def _generate_final_review(self, agent_results: Dict[str, Any]) -> str:
+        """Генерирует финальную рецензию на русском языке"""
+        logger.info("Generating final review")
+        
+        try:
+            # Проверяем, есть ли успешные результаты от агентов
+            successful_results = {k: v for k, v in agent_results.items() if v.get("status") == "success"}
+            
+            if not successful_results:
+                logger.warning("No successful agent results, generating basic review")
+                return self._generate_fallback_review()
+            
+            # Быстрая подготовка сводки на английском для LLM
+            summary_data = self._prepare_english_summary(agent_results)
+            
+            # Компактный промпт для быстрой генерации
+            prompt = self._build_review_prompt(summary_data)
+            
+            # Генерируем рецензию с агрессивными ограничениями
+            review = await self._call_llm_for_review(prompt)
+            
+            return review
+            
+        except Exception as e:
+            logger.error(f"Error generating final review: {e}")
+            return f"Ошибка при генерации рецензии: {str(e)}"
+    
+    def _generate_fallback_review(self) -> str:
+        """Генерирует базовую рецензию когда агенты не работают"""
+        return """
+Academic Paper Review
 
-    def run_agents(self, paper):
-        for agent in self.agents:
-            self.agents_responses[agent.name] = agent.run(paper)
-            print(f"Agent {agent.name} response is completed")
+Overall assessment: The paper has been processed but detailed analysis encountered technical limitations.
 
-    def refine_agents(self, paper, clarification):
-        for agent in self.agents:
-            add_prompt = f"\n\nNOTE: Please revise your response considering this feedback:\n{clarification[agent.name]}"
-            old_agent_prompt = agent.prompt
-            agent.prompt += add_prompt
-            self.agents_responses[agent.name] = agent.run(paper)
-            agent.prompt = old_agent_prompt
+Strengths:
+- Document structure appears to follow academic standards
+- Content is presented in organized format
 
-    def check_and_ask(self):
-        prompt = ""
-        for agent in self.agents:
-            prompt += f"\n\n{agent.name} Response:\n{self.agents_responses[agent.name]}"
+Weaknesses:
+- Detailed analysis could not be completed due to processing constraints
+- Specific recommendations require manual review
 
-        response = openai.ChatCompletion.create(
-            model=self.model_name,
-            api_key="OPENAI_API_KEY",
-            api_base=self.url,
-            messages=[
-                {"role": "system", "content": self.review_prompt},
-                {"role": "user", "content": prompt},
-            ]
-        )
+Recommendations:
+- Consider manual peer review for detailed feedback
+- Verify all required sections are present and complete
+- Check references and citations for accuracy
+        """.strip()
+    
+    def _prepare_english_summary(self, agent_results: Dict[str, Any]) -> str:
+        """Быстрая подготовка сводки на английском для LLM"""
+        summary_parts = []
+        
+        for agent_name, result in agent_results.items():
+            if result.get("status") == "failed":
+                summary_parts.append(f"• {agent_name}: analysis failed - {result.get('error', 'unknown error')}")
+                continue
+            
+            # Агенты теперь возвращают сырой текст
+            agent_result_text = result.get("result", "")
+            
+            if agent_name == "StructureAgent":
+                summary_parts.append(f"• Structure Analysis:")
+                summary_parts.append(f"  {agent_result_text}")
+            
+            elif agent_name == "SummaryAgent":
+                summary_parts.append(f"• Content Summary:")
+                summary_parts.append(f"  {agent_result_text}")
+        
+        if not summary_parts:
+            return "Analysis incomplete - no successful agent results"
+        
+        return "\n".join(summary_parts)
+    
+    def _build_review_prompt(self, agent_summary: str) -> str:
+        """Компактный промпт для быстрой генерации рецензии на русском"""
+        prompt = f"""
+        Academic paper analysis results:
+        {agent_summary}
 
-        result_text = remove_think_blocks(response.choices[0].message["content"])
-        parsed = json.loads(result_text)
-        return {entry["agent"]: entry["message"] for entry in parsed}
+        Create a comprehensive review with this structure:
 
-    def run(self, paper, include_paper=False):
-        openai.api_key = "OPENAI_API_KEY"
-        openai.api_base = self.url
+        Paper name
+        Overall assessment: (1-2 sentences overall assessment)
 
-        self.run_agents(paper)
+        Strengths:
+        - strength 1
+        - strength 2
 
-        for i in range(self.max_iterations):
-            print(f"\n🔍 Iteration {i + 1}: Checking consistency...")
-            clarifications = self.check_and_ask()
-            if not clarifications:
-                print("✅ No contradictions found. Proceeding to synthesis.")
-                break
-            self.refine_agents(paper, clarifications)
+        Weaknesses:
+        - issue 1
+        - issue 2
 
-        prompt = ""
-        if include_paper:
-            prompt += f"\n\nPaper:\n{paper}"
-        for agent in self.agents:
-            prompt += f"\n\n{agent.name} Response:\n{self.agents_responses[agent.name]}"
-        response = openai.ChatCompletion.create(
-            model=self.model_name,
-            messages=[
-                {"role": "system", "content": self.final_synth_prompt},
-                {"role": "user", "content": prompt},
-            ],
-        )
-        return remove_think_blocks(response.choices[0].message["content"])
+        Recommendations:
+        - recommendation 1
+        - recommendation 2
+
+        Write entire review. Be specific and constructive.
+        """
+        
+        return prompt
+    
+    async def _call_llm_for_review(self, prompt: str) -> str:
+        """Оптимизированный вызов LLM для финальной рецензии"""
+        try:
+            response = await asyncio.wait_for(
+                self.client.chat(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": self.system_prompt},
+                        {"role": "user", "content": prompt}
+                    ],
+                    options={
+                        "temperature": 0.3,  # Низкая температура для консистентности
+                        "top_p": 0.8,
+                        "num_predict": NUM_PREDICT_FOR_LLM_CALL  # Ограничиваем для скорости
+                    }
+                ),
+                timeout=TIMER_FOR_LLM_CALL
+            )
+            
+            raw_content = response['message']['content']
+            
+            # Извлекаем только финальный ответ после </think>
+            final_content = self._extract_final_response(raw_content)
+            
+            return final_content
+            
+        except asyncio.TimeoutError:
+            logger.error("LLM timeout for final review")
+            return "Превышено время ожидания при генерации рецензии"
+        except Exception as e:
+            logger.error(f"Error calling LLM for final review: {e}")
+            raise e
+    
+    def _extract_final_response(self, content: str) -> str:
+        """Извлекает финальный ответ после тега </think>"""
+        try:
+            # Ищем последний тег </think>
+            think_end_index = content.rfind('</think>')
+            
+            if think_end_index != -1:
+                # Извлекаем всё после </think>
+                final_response = content[think_end_index + len('</think>'):]
+                
+                if final_response:
+                    logger.info(f"Extracted final response after </think> tag ({len(final_response)} chars)")
+                    return final_response
+                else:
+                    logger.warning("No content found after </think> tag")
+            
+            # Если тега </think> нет, возвращаем весь контент
+            logger.info("No </think> tag found, returning full content")
+            return content.strip()
+            
+        except Exception as e:
+            logger.error(f"Error extracting final response: {e}")
+            return content.strip()
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """Быстрая проверка работоспособности системы"""
+        health_status = {
+            "orchestrator": "ok",
+            "agents": {},
+            "llm": "unknown"
+        }
+        
+        # Быстрая проверка агентов
+        for name in self.agents.keys():
+            health_status["agents"][name] = "registered"
+        
+        # Быстрая проверка LLM
+        try:
+            test_response = await asyncio.wait_for(
+                self._call_llm_for_review("Test"),
+                timeout=10.0
+            )
+            health_status["llm"] = "ok"
+        except Exception as e:
+            health_status["llm"] = f"error: {str(e)[:100]}"
+        
+        return health_status 

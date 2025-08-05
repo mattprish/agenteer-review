@@ -38,7 +38,7 @@ async def start_fastapi_server():
     config_uvicorn = uvicorn.Config(
         fastapi_app,
         host="0.0.0.0", 
-        port=8000,
+        port=5000,
         log_level="info"
     )
     server = uvicorn.Server(config_uvicorn)

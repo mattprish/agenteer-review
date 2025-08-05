@@ -18,6 +18,7 @@ from .keyboards import (
     get_processing_keyboard, get_results_keyboard
 )
 from .config import config
+from utils.pdf.pdf import async_extract_text_from_pdf
 verbose = False
 
 # Настройка логирования
@@ -35,7 +36,7 @@ class ProcessingState(StatesGroup):
 class LLMServiceClient:
     """Клиент для работы с FastAPI сервером"""
     
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    def __init__(self, base_url: str = "http://localhost:5000"):
         self.base_url = base_url
     
     async def health_check(self) -> bool:
@@ -51,27 +52,20 @@ class LLMServiceClient:
     async def upload_pdf(self, file_path: str, filename: str) -> Dict[str, Any]:
         """Загрузка PDF файла на обработку"""
         try:
-            async with aiohttp.ClientSession() as session:
-                with open(file_path, 'rb') as file:
-                    data = aiohttp.FormData()
-                    data.add_field('file', file, filename=filename, content_type='application/pdf')
-                    
-                    async with session.post(f"{self.base_url}/upload-pdf", data=data) as response:
-                        if response.status == 200:
-                            return await response.json()
-                        else:
-                            error_text = await response.text()
-                            return {"success": False, "error": f"HTTP {response.status}: {error_text}"}
+            with open(file_path, 'rb') as file:
+                pdf_content = file.read()
+                text = await async_extract_text_from_pdf(pdf_content)
+                return {"success": True, "text": text}
         except Exception as e:
             logger.error(f"Error uploading PDF: {e}")
             return {"success": False, "error": str(e)}
     
-    async def review_paper(self, text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    async def review_paper(self, text: str) -> Dict[str, Any]:
         """Отправка текста на рецензирование"""
         try:
             payload = {
                 "text": text,
-                "metadata": metadata
+                "metadata": None
             }
             
             async with aiohttp.ClientSession() as session:
@@ -254,9 +248,10 @@ async def process_file_async(message: Message, document: Document, progress_mess
         
         # Отправляем на рецензирование
         review_result = await llm_client.review_paper(
-            text=pdf_result["text"],
-            metadata=pdf_result["metadata"]
+            text=pdf_result["text"]
+            # metadata=pdf_result["metadata"]
         )
+        print(review_result)
         
         if not review_result.get("success", False):
             await progress_message.edit_text(
@@ -270,7 +265,7 @@ async def process_file_async(message: Message, document: Document, progress_mess
         # Форматируем и отправляем результат
         formatted_review = format_review(
             review_result["results"],
-            pdf_result["metadata"],
+            None,
             verbose=verbose
         )
         
